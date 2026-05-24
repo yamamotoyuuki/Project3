@@ -28,9 +28,29 @@
         UPDATE users SET last_login_at = NOW() WHERE id = #{id}
     </update>
 
+    <select id="findAll" resultMap="UserResultMap">
+        SELECT * FROM users ORDER BY created_at ASC
+    </select>
+
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO users (username, password_hash, display_name, role, email, is_active)
         VALUES (#{username}, #{passwordHash}, #{displayName}, #{role}, #{email}, #{isActive})
     </insert>
+
+    <update id="update">
+        UPDATE users SET
+            display_name = #{displayName},
+            role         = #{role},
+            email        = #{email},
+            is_active    = #{isActive},
+            updated_at   = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <select id="existsByUsername" resultType="boolean">
+        SELECT COUNT(*) > 0 FROM users
+        WHERE username = #{username}
+        <if test="excludeId != null">AND id != #{excludeId}</if>
+    </select>
 
 </mapper>

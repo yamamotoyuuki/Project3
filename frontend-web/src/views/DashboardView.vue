@@ -26,6 +26,13 @@
             <div class="kpi-value">{{ statsLoading ? '…' : stats?.inStoragePcCount ?? '—' }}</div>
           </div>
         </div>
+        <div class="kpi-card orange">
+          <div class="kpi-icon">📋</div>
+          <div class="kpi-body">
+            <div class="kpi-label">貸出中PC</div>
+            <div class="kpi-value">{{ statsLoading ? '…' : stats?.activeLoansCount ?? '—' }}</div>
+          </div>
+        </div>
         <div class="kpi-card warning">
           <div class="kpi-icon">⚠️</div>
           <div class="kpi-body">
@@ -53,18 +60,25 @@
               <div class="link-desc">社員情報の管理</div>
             </div>
           </div>
-          <div class="link-card disabled">
+          <div class="link-card" @click="router.push('/loans')">
             <span class="link-icon">📋</span>
             <div>
               <div class="link-title">貸出管理</div>
-              <div class="link-desc">Phase 3 で実装予定</div>
+              <div class="link-desc">貸出・返却の登録と確認</div>
             </div>
           </div>
-          <div class="link-card disabled">
+          <div class="link-card" @click="router.push('/rentals')">
             <span class="link-icon">📦</span>
             <div>
               <div class="link-title">レンタル管理</div>
-              <div class="link-desc">Phase 3 で実装予定</div>
+              <div class="link-desc">契約・期限アラート確認</div>
+            </div>
+          </div>
+          <div class="link-card" @click="router.push('/software')">
+            <span class="link-icon">🔑</span>
+            <div>
+              <div class="link-title">ソフトウェア</div>
+              <div class="link-desc">ライセンス管理・超過確認</div>
             </div>
           </div>
         </div>
@@ -118,6 +132,7 @@ onMounted(loadStats)
 }
 .kpi-card.green   { border-left-color: #22c55e; }
 .kpi-card.blue    { border-left-color: #3b82f6; }
+.kpi-card.orange  { border-left-color: #f97316; }
 .kpi-card.warning { border-left-color: #f59e0b; }
 .kpi-card.danger  { border-left-color: #ef4444; }
 .kpi-icon  { font-size: 30px; }

@@ -11,12 +11,9 @@ const router = createRouter({
       component: () => import('@/views/LoginView.vue'),
       meta: { requiresAuth: false },
     },
-    {
-      path: '/',
-      redirect: '/dashboard',
-    },
+    { path: '/', redirect: '/dashboard' },
 
-    // ---- メイン（認証必須） ----
+    // ---- メイン ----
     {
       path: '/dashboard',
       name: 'Dashboard',
@@ -41,28 +38,45 @@ const router = createRouter({
       component: () => import('@/views/EmployeeListView.vue'),
       meta: { requiresAuth: true },
     },
-
-    // Phase 3 以降で追加予定
-    // { path: '/loans',    name: 'LoanList',    component: ..., meta: { requiresAuth: true } },
-    // { path: '/rentals',  name: 'RentalList',  component: ..., meta: { requiresAuth: true } },
-    // { path: '/software', name: 'SoftwareList', component: ..., meta: { requiresAuth: true } },
-    // { path: '/users',    name: 'UserList',    component: ..., meta: { requiresAuth: true } },
+    {
+      path: '/loans',
+      name: 'LoanList',
+      component: () => import('@/views/LoanListView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/rentals',
+      name: 'RentalList',
+      component: () => import('@/views/RentalListView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/software',
+      name: 'SoftwareList',
+      component: () => import('@/views/SoftwareListView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/users',
+      name: 'UserList',
+      component: () => import('@/views/UserListView.vue'),
+      meta: { requiresAuth: true, requiresAdmin: true },
+    },
 
     // フォールバック
-    {
-      path: '/:pathMatch(.*)*',
-      redirect: '/dashboard',
-    },
+    { path: '/:pathMatch(.*)*', redirect: '/dashboard' },
   ],
 })
 
-// ナビゲーションガード: 未認証ならログインへ
 router.beforeEach((to) => {
   const authStore = useAuthStore()
   if (to.meta.requiresAuth && !authStore.isLoggedIn) {
     return { name: 'Login', query: { redirect: to.fullPath } }
   }
   if (to.name === 'Login' && authStore.isLoggedIn) {
+    return { name: 'Dashboard' }
+  }
+  if (to.meta.requiresAdmin && !authStore.isAdmin) {
     return { name: 'Dashboard' }
   }
 })

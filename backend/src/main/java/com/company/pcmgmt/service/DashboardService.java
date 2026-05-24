@@ -1,7 +1,10 @@
 package com.company.pcmgmt.service;
 
 import com.company.pcmgmt.api.dto.response.DashboardStatsResponse;
+import com.company.pcmgmt.domain.mapper.LoanMapper;
 import com.company.pcmgmt.domain.mapper.PcAssetMapper;
+import com.company.pcmgmt.domain.mapper.RentalMapper;
+import com.company.pcmgmt.domain.mapper.SoftwareMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -11,6 +14,9 @@ import org.springframework.transaction.annotation.Transactional;
 public class DashboardService {
 
     private final PcAssetMapper pcAssetMapper;
+    private final LoanMapper loanMapper;
+    private final RentalMapper rentalMapper;
+    private final SoftwareMapper softwareMapper;
 
     @Transactional(readOnly = true)
     public DashboardStatsResponse getStats() {
@@ -18,11 +24,10 @@ public class DashboardService {
                 .totalPcCount(pcAssetMapper.countTotal())
                 .inUsePcCount(pcAssetMapper.countByStatus("IN_USE"))
                 .inStoragePcCount(pcAssetMapper.countByStatus("IN_STORAGE"))
-                // Phase 3 で loans / rentals mapper 追加後に実装
-                .activeLoansCount(0)
-                .nearExpiryRentalsCount(0)
-                .expiredRentalsCount(0)
-                .licenseOverCount(0)
+                .activeLoansCount(loanMapper.countActive())
+                .nearExpiryRentalsCount(rentalMapper.countNearExpiry())
+                .expiredRentalsCount(rentalMapper.countExpired())
+                .licenseOverCount(softwareMapper.countOverLimit())
                 .build();
     }
 }

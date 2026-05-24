@@ -164,6 +164,178 @@ export interface EmployeeUpdateRequest {
 }
 
 // =====================
+// 貸出管理
+// =====================
+
+export interface PcLoan {
+  id: number
+  pcAssetId: number
+  assetNumber: string
+  deviceName: string
+  employeeId: number
+  employeeName: string
+  employeeCode: string
+  loanDate: string
+  expectedReturnDate: string | null
+  actualReturnDate: string | null
+  purpose: string | null
+  note: string | null
+  createdBy: number
+  createdByName: string | null
+  createdAt: string
+  returned: boolean
+  overdue: boolean
+}
+
+export interface LoanCreateRequest {
+  pcAssetId: number
+  employeeId: number
+  loanDate: string
+  expectedReturnDate?: string
+  purpose?: string
+  note?: string
+}
+
+export interface LoanReturnRequest {
+  actualReturnDate: string
+  note?: string
+}
+
+export interface LoanSearchParams {
+  page?: number
+  size?: number
+  keyword?: string
+  returned?: boolean
+}
+
+// =====================
+// レンタル管理
+// =====================
+
+export interface PcRental {
+  id: number
+  pcAssetId: number
+  assetNumber: string
+  deviceName: string
+  rentalVendorId: number
+  vendorName: string
+  contractNumber: string | null
+  rentalStartDate: string
+  rentalEndDate: string
+  monthlyFee: number | null
+  contractFilePath: string | null
+  returnDate: string | null
+  createdAt: string
+  updatedAt: string
+  returned: boolean
+  expired: boolean
+  daysUntilExpiry: number | null
+}
+
+export interface RentalVendor {
+  id: number
+  companyName: string
+  contactName: string | null
+  phone: string | null
+  email: string | null
+  address: string | null
+  note: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface RentalCreateRequest {
+  pcAssetId: number
+  rentalVendorId: number
+  contractNumber?: string
+  rentalStartDate: string
+  rentalEndDate: string
+  monthlyFee?: number
+  contractFilePath?: string
+}
+
+export interface RentalVendorCreateRequest {
+  companyName: string
+  contactName?: string
+  phone?: string
+  email?: string
+  address?: string
+  note?: string
+}
+
+export interface RentalSearchParams {
+  page?: number
+  size?: number
+  keyword?: string
+  returned?: boolean
+  expiryFilter?: 'near' | 'expired'
+}
+
+// =====================
+// ソフトウェアライセンス
+// =====================
+
+export interface SoftwareLicense {
+  id: number
+  softwareName: string
+  publisher: string | null
+  licenseType: string | null
+  purchasedCount: number
+  installedCount: number
+  note: string | null
+  createdAt: string
+  updatedAt: string
+  overLimit: boolean
+}
+
+export interface SoftwareCreateRequest {
+  softwareName: string
+  publisher?: string
+  licenseType?: string
+  purchasedCount?: number
+  note?: string
+}
+
+export interface SoftwareSearchParams {
+  page?: number
+  size?: number
+  keyword?: string
+  overLimit?: boolean
+}
+
+// =====================
+// ユーザー管理
+// =====================
+
+export interface SystemUser {
+  id: number
+  username: string
+  displayName: string
+  role: 'ADMIN' | 'IT_STAFF' | 'VIEWER'
+  email: string | null
+  isActive: boolean
+  lastLoginAt: string | null
+  createdAt: string
+  updatedAt: string | null
+}
+
+export interface UserCreateRequest {
+  username: string
+  password: string
+  displayName: string
+  role: 'ADMIN' | 'IT_STAFF' | 'VIEWER'
+  email?: string
+}
+
+export interface UserUpdateRequest {
+  displayName: string
+  role: 'ADMIN' | 'IT_STAFF' | 'VIEWER'
+  email?: string
+  isActive?: boolean
+  password?: string
+}
+
+// =====================
 // ダッシュボード
 // =====================
 

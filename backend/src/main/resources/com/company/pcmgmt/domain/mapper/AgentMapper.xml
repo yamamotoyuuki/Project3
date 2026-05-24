@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.company.pcmgmt.domain.mapper.AgentMapper">
+
+    <select id="findAssetByHostname" resultType="com.company.pcmgmt.domain.entity.PcAsset">
+        SELECT * FROM pc_assets WHERE hostname = #{hostname} LIMIT 1
+    </select>
+
+    <select id="findHardwareByAssetId" resultType="com.company.pcmgmt.domain.entity.PcHardwareInfo">
+        SELECT * FROM pc_hardware_info WHERE pc_asset_id = #{pcAssetId}
+    </select>
+
+    <insert id="insertHardware" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO pc_hardware_info (pc_asset_id, cpu_model, cpu_cores, memory_gb, disk_gb, disk_free_gb, collected_at)
+        VALUES (#{pcAssetId}, #{cpuModel}, #{cpuCores}, #{memoryGb}, #{diskGb}, #{diskFreeGb}, NOW())
+    </insert>
+
+    <update id="updateHardware">
+        UPDATE pc_hardware_info SET
+            cpu_model    = #{cpuModel},
+            cpu_cores    = #{cpuCores},
+            memory_gb    = #{memoryGb},
+            disk_gb      = #{diskGb},
+            disk_free_gb = #{diskFreeGb},
+            collected_at = NOW(),
+            updated_at   = NOW()
+        WHERE pc_asset_id = #{pcAssetId}
+    </update>
+
+    <delete id="deleteSoftwareByAssetId">
+        DELETE FROM pc_software_info WHERE pc_asset_id = #{pcAssetId}
+    </delete>
+
+    <insert id="insertSoftware">
+        INSERT INTO pc_software_info (pc_asset_id, software_name, version, publisher, install_date, collected_at)
+        VALUES (#{pcAssetId}, #{softwareName}, #{version}, #{publisher},
+            <choose>
+                <when test="installDate != null and installDate != ''">
+                    STR_TO_DATE(#{installDate}, '%Y-%m-%d')
+                </when>
+                <otherwise>NULL</otherwise>
+            </choose>,
+            NOW())
+    </insert>
+
+    <delete id="deleteNetworkByAssetId">
+        DELETE FROM pc_network_info WHERE pc_asset_id = #{pcAssetId}
+    </delete>
+
+    <insert id="insertNetwork">
+        INSERT INTO pc_network_info (pc_asset_id, nic_name, ip_address, mac_address, collected_at)
+        VALUES (#{pcAssetId}, #{nicName}, #{ipAddress}, #{macAddress}, NOW())
+    </insert>
+
+    <update id="updateAgentLastSeen">
+        UPDATE pc_assets SET agent_last_seen = NOW() WHERE id = #{pcAssetId}
+    </update>
+
+</mapper>

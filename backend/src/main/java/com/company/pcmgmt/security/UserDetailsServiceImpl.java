@@ -30,4 +30,9 @@ public class UserDetailsServiceImpl implements UserDetailsService {
                 .authorities(List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole())))
                 .build();
     }
+
+    /** エンティティとしてユーザーを返す（ログインユーザーID取得用） */
+    public User loadUserEntityByUsername(String username) {
+        return userMapper.findByUsername(username);
+    }
 }
