@@ -43,26 +43,38 @@
 - コンパイル確認: BUILD SUCCESSFUL
 
 #### Frontend
-- [ ] **3-8** 型定義追加: PcLoan, PcAcquisitionRental, RentalVendor, SoftwareMaster
-- [ ] **3-9** API モジュール: loans.ts, rentals.ts, software.ts, users.ts
-- [ ] **3-10** LoanListView: 貸出一覧・登録・返却
-- [ ] **3-11** RentalListView: レンタル契約一覧・登録・期限アラート
-- [ ] **3-12** SoftwareListView: ライセンス一覧・登録・使用数確認
-- [ ] **3-13** UserListView: ユーザー一覧・登録（管理者のみ）
-- [ ] **3-14** Router: /loans, /rentals, /software, /users 追加
-- [ ] **3-15** Dashboard: 実データ反映
+- [x] **3-8** 型定義追加: PcLoan, PcAcquisitionRental, RentalVendor, SoftwareLicense, SystemUser
+- [x] **3-9** API モジュール: loans.ts, rentals.ts, software.ts, users.ts
+- [x] **3-10** LoanListView: 貸出一覧・登録・返却（期限超過の赤ハイライト）
+- [x] **3-11** RentalListView: 契約一覧・ベンダー管理・契約登録・返却（期限切れ行ハイライト）
+- [x] **3-12** SoftwareListView: ライセンス一覧・超過フィルタ・CRUD
+- [x] **3-13** UserListView: ユーザー一覧・追加・編集（管理者のみアクセス可）
+- [x] **3-14** Router: /loans, /rentals, /software, /users 追加
+- [x] **3-15** Dashboard: 貸出中KPIカード追加・クイックリンク有効化
+- コンパイル/ビルド確認: BUILD SUCCESSFUL (backend) / ✓ built in 1.00s (frontend)
+
+---
+
+## ✅ Phase 3 完了
+
+**コミット**: `a6810a8`
 
 ---
 
 ## 次セッションへの引き継ぎ
 
-> このセクションは各ステップ完了後に更新する。
+**最後に完了したステップ**: Phase 3 完全完了（コミット a6810a8）
 
-**最後に完了したステップ**: Phase 2 完了（コミット c561e2d）
-**次にやること**: Phase 3-1 から順番に着手
+### 残り課題（Phase 4 候補）
+1. **Tauri エージェント実装**: Rust で sysinfo クレートを使いハードウェア情報収集 → POST /api/v1/agent/report
+2. **CSV/Excel エクスポート**: Apache POI / OpenCSV はビルド依存関係に既に含まれている
+3. **操作ログ機能**: operation_logs テーブルは作成済み、ロギングAOPを追加
+4. **テスト**: Spring Boot Test + MyBatis Test でAPIテスト
+5. **本番設定**: GitHub Actions CI/CD、Dockerマルチステージビルド最適化
 
 ### 中断時の注意点
 - application-dev.yml は localhost:3306/project3 (root/pass) 接続
 - JAVA_HOME = `C:\Program Files\Eclipse Adoptium\jdk-21.0.11.10-hotspot`
 - frontend-web の型チェック: `node_modules\.bin\vue-tsc --noEmit`
 - backend コンパイル: `$env:JAVA_HOME = "..."; .\gradlew.bat compileJava`
+- ログインパスワード: admin / Admin@1234
