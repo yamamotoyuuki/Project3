@@ -1,0 +1,66 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: pcmgmt-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-pcmgmt}
+      MYSQL_USER: ${MYSQL_USER:-pcmgmt}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-pcmgmt_password}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - pcmgmt-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: pcmgmt-backend
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: ${MYSQL_DATABASE:-pcmgmt}
+      DB_USER: ${MYSQL_USER:-pcmgmt}
+      DB_PASSWORD: ${MYSQL_PASSWORD:-pcmgmt_password}
+      JWT_SECRET: ${JWT_SECRET:-your-super-secret-key-change-in-production-min-256bits}
+      JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}
+    ports:
+      - "8080:8080"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - pcmgmt-network
+    volumes:
+      - ./backend:/app
+    restart: unless-stopped
+
+  frontend-web:
+    build:
+      context: ./frontend-web
+      dockerfile: Dockerfile
+    container_name: pcmgmt-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - pcmgmt-network
+
+volumes:
+  mysql_data:
+    driver: local
+
+networks:
+  pcmgmt-network:
+    driver: bridge

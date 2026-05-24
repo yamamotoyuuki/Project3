@@ -1,0 +1,9 @@
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/pcmgmt?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Tokyo&allowPublicKeyRetrieval=true&useSSL=false
+
+logging:
+  level:
+    com.company.pcmgmt: DEBUG
+    org.mybatis: DEBUG
+    org.springframework.security: DEBUG

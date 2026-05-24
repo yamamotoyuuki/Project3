@@ -1,0 +1,31 @@
+/* =====================
+   PC管理システム グローバルCSS
+   ===================== */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  height: 100%;
+  font-family: 'Segoe UI', 'Helvetica Neue', Arial, 'Noto Sans JP', sans-serif;
+  font-size: 15px;
+  color: #1a1a2e;
+  background: #f3f4f6;
+  -webkit-font-smoothing: antialiased;
+}
+
+#app {
+  height: 100%;
+}
+
+a {
+  color: #6366f1;
+  text-decoration: none;
+}
+
+button {
+  font-family: inherit;
+}

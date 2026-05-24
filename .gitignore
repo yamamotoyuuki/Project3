@@ -1,0 +1,56 @@
+# ==============================
+# PC管理システム .gitignore
+# ==============================
+
+# 環境変数（機密情報）
+.env
+*.env.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+
+# ==============================
+# Backend (Java / Gradle)
+# ==============================
+backend/build/
+backend/.gradle/
+backend/out/
+backend/*.class
+backend/HELP.md
+backend/.settings/
+backend/.project
+backend/.classpath
+backend/target/
+
+# ==============================
+# Frontend Web (Node.js / Vite)
+# ==============================
+frontend-web/node_modules/
+frontend-web/dist/
+frontend-web/.vite/
+
+# ==============================
+# Agent (Tauri / Rust)
+# ==============================
+agent/node_modules/
+agent/dist/
+agent/src-tauri/target/
+agent/src-tauri/gen/
+
+# ==============================
+# Docker
+# ==============================
+mysql_data/
+
+# ==============================
+# Logs
+# ==============================
+*.log
+logs/
