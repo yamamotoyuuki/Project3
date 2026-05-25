@@ -1,6 +1,6 @@
 # 開発進捗記録
 
-最終更新: 2026-05-24
+最終更新: 2026-05-25
 
 ---
 
@@ -26,51 +26,70 @@
 - **Frontend**: AppLayout, StatusBadge, AppPagination、AssetListView, AssetDetailView, EmployeeListView
 - Router: /assets, /assets/:id, /employees 追加
 
----
-
-## 🔄 Phase 3 - 進行中
-
-### 作業計画（完了したらチェック）
-
-#### Backend
-- [x] **3-1** エンティティ追加: PcLoan, RentalVendor, PcAcquisitionRental, SoftwareMaster
-- [x] **3-2** 貸出管理 API: LoanMapper(+XML) / LoanService / LoanController
-- [x] **3-3** レンタル管理 API: RentalMapper(+XML) / RentalService / RentalController (ベンダー含む)
-- [x] **3-4** ソフトウェアライセンス API: SoftwareMapper(+XML) / SoftwareService / SoftwareController
-- [x] **3-5** ユーザー管理 API: UserService / UserController (UserMapper 拡張)
-- [x] **3-6** エージェント受信 API: AgentMapper(+XML) / AgentService / AgentController
-- [x] **3-7** ダッシュボード更新: 全統計を実データ化 (LoanMapper/RentalMapper/SoftwareMapper 使用)
-- コンパイル確認: BUILD SUCCESSFUL
-
-#### Frontend
-- [x] **3-8** 型定義追加: PcLoan, PcAcquisitionRental, RentalVendor, SoftwareLicense, SystemUser
-- [x] **3-9** API モジュール: loans.ts, rentals.ts, software.ts, users.ts
-- [x] **3-10** LoanListView: 貸出一覧・登録・返却（期限超過の赤ハイライト）
-- [x] **3-11** RentalListView: 契約一覧・ベンダー管理・契約登録・返却（期限切れ行ハイライト）
-- [x] **3-12** SoftwareListView: ライセンス一覧・超過フィルタ・CRUD
-- [x] **3-13** UserListView: ユーザー一覧・追加・編集（管理者のみアクセス可）
-- [x] **3-14** Router: /loans, /rentals, /software, /users 追加
-- [x] **3-15** Dashboard: 貸出中KPIカード追加・クイックリンク有効化
+### ✅ Phase 3 - 貸出・レンタル・ソフトウェア・ユーザー・エージェント管理
+- commit: `a6810a8`
+- **Backend**: 貸出/レンタル/ソフトウェア/ユーザー/エージェント管理 API
+- **Frontend**: LoanListView, RentalListView, SoftwareListView, UserListView, Dashboard KPI更新
 - コンパイル/ビルド確認: BUILD SUCCESSFUL (backend) / ✓ built in 1.00s (frontend)
 
 ---
 
-## ✅ Phase 3 完了
+## ✅ Phase 4 完了
 
-**コミット**: `a6810a8`
+### 4-1: 操作ログ機能（HandlerInterceptor）
+- [x] `@Loggable` アノテーション作成（annotation/Loggable.java）
+- [x] `OperationLog` エンティティ作成（domain/entity/OperationLog.java）
+- [x] `OperationLogMapper` + XML 作成
+- [x] `OperationLogService` 作成（@Async + REQUIRES_NEW で非同期書き込み）
+- [x] `OperationLoggingInterceptor` 作成（HandlerInterceptor、新規依存不要）
+- [x] `WebMvcConfig` でインターセプター登録
+- [x] PcAssetController / LoanController に `@Loggable` 付与
+- [x] `@EnableAsync` を PcMgmtApplication に追加
+
+### 4-2: CSV/Excel エクスポート機能
+- [x] `ExportService` 作成（Apache POI + 標準 PrintWriter）
+  - exportAssetsCsv(): PC資産一覧 CSV（UTF-8 BOM付き）
+  - exportAssetsExcel(): PC資産一覧 Excel (.xlsx)
+  - exportLoansCsv(): 貸出一覧 CSV
+- [x] `ExportController` 作成
+  - GET /api/v1/export/assets.csv
+  - GET /api/v1/export/assets.xlsx
+  - GET /api/v1/export/loans.csv
+- [x] AssetListView に CSV/Excelダウンロードボタン追加
+
+### 4-3: Tauri エージェント完成
+- [x] `lib.rs` 完成: ディスク情報（sysinfo::Disks）
+- [x] ネットワーク IP（UDPソケットトリック）
+- [x] ソフトウェア一覧（OS別コマンド: PowerShell/system_profiler/dpkg/rpm）
+- [x] `App.vue` コメント追加・資産番号未設定警告・ディスク/ソフトウェア件数表示
+
+### 4-4: GitHub Actions CI/CD
+- [x] `.github/workflows/ci.yml` 作成
+  - backend-build: Gradle build + test（MySQL サービスコンテナ付き）
+  - frontend-build: npm ci + vue-tsc --noEmit + npm run build
+  - docker-build: バックエンド/フロントエンドの Docker イメージビルド確認
+
+### 4-5: テスト実装
+- [x] `application-test.yml`（H2 インメモリ DB）
+- [x] `PcAssetServiceTest`（Mockito 単体テスト: findAll/findById/create/update/delete）
+- [x] `PcAssetControllerTest`（MockMvc WebMvcTest: 200/201/400/401/404 ステータス確認）
+
+### ビルド確認
+- Backend compileJava: BUILD SUCCESSFUL
+- Backend compileTestJava: BUILD SUCCESSFUL
+- Frontend: ✓ built in 1.25s
 
 ---
 
 ## 次セッションへの引き継ぎ
 
-**最後に完了したステップ**: Phase 3 完全完了（コミット a6810a8）
+**最後に完了したステップ**: Phase 4 完全完了
 
-### 残り課題（Phase 4 候補）
-1. **Tauri エージェント実装**: Rust で sysinfo クレートを使いハードウェア情報収集 → POST /api/v1/agent/report
-2. **CSV/Excel エクスポート**: Apache POI / OpenCSV はビルド依存関係に既に含まれている
-3. **操作ログ機能**: operation_logs テーブルは作成済み、ロギングAOPを追加
-4. **テスト**: Spring Boot Test + MyBatis Test でAPIテスト
-5. **本番設定**: GitHub Actions CI/CD、Dockerマルチステージビルド最適化
+### 残り課題（オプション）
+1. **操作ログ閲覧 UI**: 管理者向けに /admin/logs 画面追加
+2. **テスト拡充**: LoanService / RentalService の単体テスト
+3. **E2E テスト**: Playwright などでブラウザテスト
+4. **本番設定**: 環境変数の整理、Docker Compose 本番設定
 
 ### 中断時の注意点
 - application-dev.yml は localhost:3306/project3 (root/pass) 接続
@@ -78,3 +97,4 @@
 - frontend-web の型チェック: `node_modules\.bin\vue-tsc --noEmit`
 - backend コンパイル: `$env:JAVA_HOME = "..."; .\gradlew.bat compileJava`
 - ログインパスワード: admin / Admin@1234
+- エクスポート URL: /api/v1/export/assets.csv, /api/v1/export/assets.xlsx, /api/v1/export/loans.csv

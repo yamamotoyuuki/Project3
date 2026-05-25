@@ -1,13 +1,43 @@
 <!DOCTYPE html>
+<!--
+  index.html
+  -----------------------------------------------
+  Vue SPA のシェル HTML ファイル
+
+  Vite の開発サーバーおよびビルド時のエントリーポイント。
+  ブラウザはこのファイルを最初に読み込み、Vue アプリを
+  <div id="app"> にマウントする。
+
+  全ページ共通のメタ情報・OGP・favicon はここで設定する。
+  -----------------------------------------------
+-->
 <html lang="ja">
   <head>
+    <!-- 文字エンコーディング: UTF-8 -->
     <meta charset="UTF-8" />
+
+    <!-- ファビコン（SVG 形式） -->
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+
+    <!-- レスポンシブデザイン対応: デバイス幅に合わせてビューポートを設定 -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- ブラウザタブ・ブックマークに表示されるページタイトル -->
     <title>PC管理システム</title>
   </head>
   <body>
+    <!--
+      Vue アプリのマウントポイント
+      main.ts で createApp(App).mount('#app') が実行され、
+      ここに Vue コンポーネントツリーが描画される。
+    -->
     <div id="app"></div>
+
+    <!--
+      Vue アプリのエントリースクリプト
+      type="module" を指定することで ES Modules として読み込む。
+      Vite がこのファイルを起点にバンドルを生成する。
+    -->
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

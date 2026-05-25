@@ -3,9 +3,18 @@
     <div class="page">
       <div class="page-header">
         <h2 class="page-title">💻 PC一覧</h2>
-        <button v-if="authStore.isItStaff" class="btn btn-primary" @click="openCreate">
-          ＋ PC登録
-        </button>
+        <div class="header-actions">
+          <!-- CSV / Excel エクスポートボタン -->
+          <a class="btn btn-ghost" :href="exportUrl('assets.csv')" download>
+            📥 CSV
+          </a>
+          <a class="btn btn-ghost" :href="exportUrl('assets.xlsx')" download>
+            📊 Excel
+          </a>
+          <button v-if="authStore.isItStaff" class="btn btn-primary" @click="openCreate">
+            ＋ PC登録
+          </button>
+        </div>
       </div>
 
       <!-- 検索バー -->
@@ -189,6 +198,16 @@ import type { PcAsset, Employee, AcquisitionType, PcStatus } from '@/types'
 const authStore = useAuthStore()
 const router = useRouter()
 
+/**
+ * エクスポート URL を生成する
+ * JWT トークンをクエリパラメータとして付与し、認証済みダウンロードを実現する。
+ * @param filename - エクスポートファイル名（例: "assets.csv"）
+ */
+function exportUrl(filename: string): string {
+  const token = localStorage.getItem('token') ?? ''
+  return `/api/v1/export/${filename}?token=${token}`
+}
+
 // ---- 一覧 ----
 const assets = ref<PcAsset[]>([])
 const loading = ref(false)
@@ -359,6 +378,8 @@ onMounted(() => {
 <style scoped>
 .page { display: flex; flex-direction: column; gap: 16px; }
 .page-header { display: flex; justify-content: space-between; align-items: center; }
+/* ヘッダー右側のボタングループ */
+.header-actions { display: flex; gap: 8px; align-items: center; }
 .page-title  { font-size: 20px; font-weight: 700; color: #1a1a2e; margin: 0; }
 
 .search-bar {

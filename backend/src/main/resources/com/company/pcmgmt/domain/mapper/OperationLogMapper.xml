@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!--
+    OperationLogMapper.xml
+    操作ログ（operation_logs テーブル）への INSERT SQL を管理する。
+    SELECT は現時点では不要のため未定義。
+-->
+<mapper namespace="com.company.pcmgmt.domain.mapper.OperationLogMapper">
+
+    <!--
+        操作ログ挿入
+        AOP アスペクト（OperationLoggingAspect）から呼び出される。
+        created_at は DB の DEFAULT CURRENT_TIMESTAMP に委ねる。
+    -->
+    <insert id="insert" parameterType="com.company.pcmgmt.domain.entity.OperationLog">
+        INSERT INTO operation_logs (
+            user_id,
+            username,
+            operation,
+            target_type,
+            target_id,
+            detail,
+            ip_address
+        ) VALUES (
+            #{userId},
+            #{username},
+            #{operation},
+            #{targetType},
+            #{targetId},
+            #{detail},
+            #{ipAddress}
+        )
+    </insert>
+
+</mapper>

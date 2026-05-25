@@ -1,5 +1,6 @@
 package com.company.pcmgmt.api.controller;
 
+import com.company.pcmgmt.annotation.Loggable;
 import com.company.pcmgmt.api.dto.request.LoanCreateRequest;
 import com.company.pcmgmt.api.dto.request.LoanReturnRequest;
 import com.company.pcmgmt.api.dto.request.LoanSearchRequest;
@@ -67,6 +68,7 @@ public class LoanController {
      * @param req 貸出登録リクエスト（リクエストボディ、バリデーション適用）
      * @return HTTP 201 Created と登録後の貸出レスポンス
      */
+    @Loggable(operation = "CREATE", targetType = "貸出")
     @PostMapping
     public ResponseEntity<ApiResponse<LoanResponse>> create(
             @Valid @RequestBody LoanCreateRequest req) {
@@ -89,6 +91,7 @@ public class LoanController {
      * @param req 返却登録リクエスト（リクエストボディ、バリデーション適用）
      * @return 更新後の貸出レスポンス
      */
+    @Loggable(operation = "RETURN", targetType = "貸出")
     @PutMapping("/{id}/return")
     public ResponseEntity<ApiResponse<LoanResponse>> returnLoan(
             @PathVariable Long id,

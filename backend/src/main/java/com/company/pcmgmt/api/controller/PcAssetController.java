@@ -1,5 +1,6 @@
 package com.company.pcmgmt.api.controller;
 
+import com.company.pcmgmt.annotation.Loggable;
 import com.company.pcmgmt.api.dto.request.AssetCreateRequest;
 import com.company.pcmgmt.api.dto.request.AssetSearchRequest;
 import com.company.pcmgmt.api.dto.request.AssetUpdateRequest;
@@ -70,6 +71,7 @@ public class PcAssetController {
      * @param req 登録リクエスト（リクエストボディ、バリデーション適用）
      * @return HTTP 201 Created と登録後のPC資産レスポンス
      */
+    @Loggable(operation = "CREATE", targetType = "PC資産")
     @PostMapping
     public ResponseEntity<ApiResponse<AssetResponse>> create(
             @Valid @RequestBody AssetCreateRequest req) {
@@ -92,6 +94,7 @@ public class PcAssetController {
      * @param req 更新リクエスト（リクエストボディ、バリデーション適用）
      * @return 更新後のPC資産レスポンス
      */
+    @Loggable(operation = "UPDATE", targetType = "PC資産")
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<AssetResponse>> update(
             @PathVariable Long id,
@@ -110,6 +113,7 @@ public class PcAssetController {
      * @param id 削除対象のPC資産ID（パスパラメータ）
      * @return HTTP 200 OK と削除完了メッセージ
      */
+    @Loggable(operation = "DELETE", targetType = "PC資産")
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
         pcAssetService.delete(id);
