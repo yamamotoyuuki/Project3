@@ -4,6 +4,7 @@
  * PC管理エージェント - コアロジック
  *
  * Tauri コマンドとして以下の機能を提供する:
+ *   - load_config    : application.yml からAPI設定を読み込む
  *   - collect_pc_info: sysinfo クレートでPC情報を収集
  *   - send_report    : 収集情報をバックエンド API へ POST 送信
  *
@@ -18,6 +19,38 @@
  */
 use serde::{Deserialize, Serialize};
 use sysinfo::{Disks, System};
+
+// =====================================================
+// 設定ファイル構造体（application.yml のマッピング）
+// =====================================================
+
+/// application.yml のルート構造
+///
+/// ```yaml
+/// agent:
+///   api:
+///     base-url: http://localhost:8080/api/v1
+/// ```
+#[derive(Debug, Deserialize)]
+struct AppConfig {
+    /// エージェント設定セクション
+    agent: AgentSection,
+}
+
+/// `agent:` セクションの構造
+#[derive(Debug, Deserialize)]
+struct AgentSection {
+    /// API接続情報セクション
+    api: ApiSection,
+}
+
+/// `api:` セクションの構造
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct ApiSection {
+    /// バックエンドAPIのベースURL（例: "http://localhost:8080/api/v1"）
+    #[serde(rename = "base-url")]
+    pub base_url: String,
+}
 
 // =====================================================
 // データ構造（AgentReport とその内部型）
@@ -68,10 +101,20 @@ pub struct SoftwareInfo {
 /// バックエンドに送信するレポート全体を表す構造体
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AgentReport {
+    /// エージェント番号（初回登録時にバックエンドが発行。ローカルに保存して毎回送信する）
+    /// Option<String> とすることで、未取得（null）を JSON に含めずシリアライズできる
+    pub agent_number: Option<String>,
     /// PC の資産番号（ユーザーが設定画面で入力）
     pub asset_number: String,
-    /// 設置場所（ユーザーが設定画面で入力）
+    /// 設置場所（ユーザーが設定画面で入力。pc_assets.location に登録される）
     pub location: String,
+    /// 使用者名（ユーザーが設定画面で入力。pc_assets.user_name に登録される）
+    /// Option<String> とすることで、未入力（null）を JSON に含めずシリアライズできる
+    pub user_name: Option<String>,
+    /// 取得区分（"PURCHASE" / "RENTAL"）
+    /// - エージェントから初めて設定する場合のみ送信する（バックエンドに既に設定済みの場合は None）
+    /// - Option<String> とすることで、送信不要（null）を JSON に含めずシリアライズできる
+    pub acquisition_type: Option<String>,
     /// PC のホスト名（OS から自動取得）
     pub hostname: String,
     /// ハードウェア情報
@@ -84,6 +127,89 @@ pub struct AgentReport {
     pub software: Vec<SoftwareInfo>,
     /// 情報収集日時（ISO 8601 形式）
     pub collected_at: String,
+}
+
+// =====================================================
+// Tauri コマンド: 設定ファイルを読み込む
+// =====================================================
+
+/// application.yml からエージェント設定（APIのベースURL等）を読み込む。
+///
+/// 読み込み優先順位:
+///   1. アプリのリソースディレクトリ内の application.yml（バンドル済み）
+///   2. 実行ファイルと同じディレクトリの application.yml（管理者が配置）
+///
+/// いずれも読み込めない場合はデフォルト値（http://localhost:8080/api/v1）を返す。
+///
+/// # Returns
+/// 読み込み成功時は `Ok(ApiSection)`、失敗時は `Err(エラーメッセージ)` を返す。
+/// フロントエンド側では `result.base_url` でAPIのベースURLを取得する。
+#[tauri::command]
+fn load_config(app: tauri::AppHandle) -> Result<ApiSection, String> {
+    use tauri::Manager;
+
+    // ---- ① リソースディレクトリから読み込む（Tauri バンドル済み）----
+    let resource_path = app
+        .path()
+        .resource_dir()
+        .ok()
+        .map(|dir| dir.join("application.yml"));
+
+    if let Some(path) = resource_path {
+        if path.exists() {
+            match read_config_from_path(&path) {
+                Ok(section) => {
+                    println!("[CONFIG] application.yml をリソースディレクトリから読み込みました: {:?}", path);
+                    return Ok(section);
+                }
+                Err(e) => {
+                    eprintln!("[CONFIG] リソースディレクトリの application.yml 読み込みエラー: {}", e);
+                }
+            }
+        }
+    }
+
+    // ---- ② 実行ファイルと同階層から読み込む（管理者配置用）----
+    let exe_path = std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(|d| d.join("application.yml")));
+
+    if let Some(path) = exe_path {
+        if path.exists() {
+            match read_config_from_path(&path) {
+                Ok(section) => {
+                    println!("[CONFIG] application.yml を実行ファイルディレクトリから読み込みました: {:?}", path);
+                    return Ok(section);
+                }
+                Err(e) => {
+                    eprintln!("[CONFIG] 実行ファイルディレクトリの application.yml 読み込みエラー: {}", e);
+                }
+            }
+        }
+    }
+
+    // ---- ③ いずれも見つからない場合はデフォルト値を返す ----
+    println!("[CONFIG] application.yml が見つかりませんでした。デフォルト値を使用します。");
+    Ok(ApiSection {
+        base_url: "http://localhost:8080/api/v1".to_string(),
+    })
+}
+
+/// 指定パスの YAML ファイルを読み込んで ApiSection を返すヘルパー関数
+///
+/// # Arguments
+/// * `path` - 読み込む YAML ファイルのパス
+///
+/// # Returns
+/// 読み込み・パース成功時は `Ok(ApiSection)`、失敗時は `Err(エラーメッセージ)` を返す。
+fn read_config_from_path(path: &std::path::Path) -> Result<ApiSection, String> {
+    let content = std::fs::read_to_string(path)
+        .map_err(|e| format!("ファイル読み込みエラー: {}", e))?;
+
+    let config: AppConfig = serde_yaml::from_str(&content)
+        .map_err(|e| format!("YAML 解析エラー: {}", e))?;
+
+    Ok(config.agent.api)
 }
 
 // =====================================================
@@ -138,8 +264,11 @@ fn collect_pc_info() -> Result<AgentReport, String> {
 
     // AgentReport を組み立てて返す
     let report = AgentReport {
-        asset_number: String::new(), // 設定画面でユーザーが入力する値
-        location:     String::new(), // 設定画面でユーザーが入力する値
+        agent_number:    None,           // ローカルに保存したエージェント番号（Vue側で上書き）
+        asset_number:    String::new(),  // 設定画面でユーザーが入力する値（Vue側で上書き）
+        location:        String::new(),  // 設定画面でユーザーが入力する値（Vue側で上書き）
+        user_name:       None,           // 設定画面でユーザーが入力する値（Vue側で上書き）
+        acquisition_type: None,          // 保存ボタン押下時にVue側で設定（バックエンド未設定時のみ）
         hostname,
         hardware: HardwareInfo {
             cpu_model,
@@ -187,6 +316,212 @@ async fn send_report(api_url: String, report: AgentReport) -> Result<String, Str
 
     if response.status().is_success() {
         Ok("送信成功".to_string())
+    } else {
+        Err(format!("サーバーエラー: {}", response.status()))
+    }
+}
+
+// =====================================================
+// Tauri コマンド: 取得区分の取得
+// =====================================================
+
+/// エージェント起動時にバックエンドから PC 資産の取得区分（購入/レンタル）を取得する。
+///
+/// バックエンドに取得区分が設定済みの場合は "PURCHASE" または "RENTAL" を返す。
+/// 対応する PC 資産が見つからない、または未設定の場合は `None` を返す。
+/// エラー時（バックエンド未起動等）も `None` を返し、設定欄を活性化する。
+///
+/// 検索順序（バックエンド側）:
+///   1. エージェント番号で検索（2回目以降・pc_assets.agent_number が設定済みの場合）
+///   2. ホスト名でフォールバック検索（管理者が先に資産登録した場合など、agent_number 未紐付け時）
+///
+/// # Arguments
+/// * `api_url`      - バックエンドの API ベース URL（例: "http://localhost:8080/api/v1"）
+/// * `agent_number` - エージェント番号（例: "AGT-A1B2C3D4"）
+/// * `hostname`     - エージェントが動作する PC のホスト名（フォールバック検索に使用）
+///
+/// # Returns
+/// バックエンドに設定済みの場合は `Ok(Some("PURCHASE"))` / `Ok(Some("RENTAL"))`、
+/// 未設定・未登録・エラーの場合は `Ok(None)` を返す。
+#[tauri::command]
+async fn fetch_asset_acquisition_type(
+    api_url: String,
+    agent_number: String,
+    hostname: String,
+) -> Result<Option<String>, String> {
+    let client = reqwest::Client::new();
+    // URL を組み立てる（agentNumber + hostname の両方をクエリパラメータで送信）
+    let url = format!(
+        "{}/agent/asset-info?agentNumber={}&hostname={}",
+        api_url.trim_end_matches('/'),
+        agent_number,
+        hostname
+    );
+
+    let response = client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| format!("取得エラー: {}", e))?;
+
+    if response.status().is_success() {
+        // レスポンス例: {"success": true, "data": "RENTAL"} または {"success": true, "data": null}
+        let json: serde_json::Value = response
+            .json()
+            .await
+            .map_err(|e| format!("レスポンス解析エラー: {}", e))?;
+
+        // "data" フィールドが文字列の場合のみ返す（null の場合は None）
+        Ok(json["data"].as_str().map(|s| s.to_string()))
+    } else {
+        // 取得失敗時（資産未登録等）は None を返して設定欄を活性化する
+        Ok(None)
+    }
+}
+
+// =====================================================
+// Tauri コマンド: エージェント番号のファイル保存・読み込み
+// =====================================================
+
+/// エージェント番号を保存するファイル名
+/// - Unix 系 OS: `.` 始まりにより隠しファイル扱い
+/// - Windows: attrib +H で明示的に隠し属性を付与する
+const AGENT_NUMBER_FILE: &str = ".agent_id";
+
+/// エージェント番号をアプリのローカルデータディレクトリから読み込む。
+///
+/// 保存先:
+/// - Windows: `%LOCALAPPDATA%\{app-name}\.agent_id`
+/// - macOS:   `~/Library/Application Support/{app-name}/.agent_id`
+/// - Linux:   `~/.local/share/{app-name}/.agent_id`
+///
+/// # Returns
+/// ファイルが存在する場合は `Ok(Some("AGT-XXXXXXXX"))`、
+/// ファイルがない場合は `Ok(None)`、
+/// 読み込みエラーの場合は `Err(エラーメッセージ)` を返す。
+#[tauri::command]
+fn load_agent_number(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    use tauri::Manager;
+
+    // Tauri が管理するアプリローカルデータディレクトリを取得する
+    let data_dir = app
+        .path()
+        .app_local_data_dir()
+        .map_err(|e| format!("データディレクトリ取得エラー: {}", e))?;
+
+    let file_path = data_dir.join(AGENT_NUMBER_FILE);
+
+    // ファイルが存在しない場合（初回起動など）は None を返す
+    if !file_path.exists() {
+        return Ok(None);
+    }
+
+    // ファイルを読み込んでトリミングする
+    let content = std::fs::read_to_string(&file_path)
+        .map_err(|e| format!("エージェント番号読み込みエラー: {}", e))?;
+
+    let number = content.trim().to_string();
+    if number.is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(number))
+    }
+}
+
+/// エージェント番号をアプリのローカルデータディレクトリに保存する。
+///
+/// Unix 系 OS では `.` 始まりのファイル名が隠しファイルとして扱われる。
+/// Windows では `attrib +H` コマンドで隠し属性を付与する。
+///
+/// # Arguments
+/// * `app`          - Tauri アプリハンドル（保存先ディレクトリの解決に使用）
+/// * `agent_number` - 保存するエージェント番号（例: "AGT-A1B2C3D4"）
+///
+/// # Returns
+/// 保存成功時は `Ok(())`、失敗時は `Err(エラーメッセージ)` を返す。
+#[tauri::command]
+fn save_agent_number(app: tauri::AppHandle, agent_number: String) -> Result<(), String> {
+    use tauri::Manager;
+
+    // Tauri が管理するアプリローカルデータディレクトリを取得する
+    let data_dir = app
+        .path()
+        .app_local_data_dir()
+        .map_err(|e| format!("データディレクトリ取得エラー: {}", e))?;
+
+    // ディレクトリが存在しない場合は再帰的に作成する
+    std::fs::create_dir_all(&data_dir)
+        .map_err(|e| format!("ディレクトリ作成エラー: {}", e))?;
+
+    let file_path = data_dir.join(AGENT_NUMBER_FILE);
+
+    // エージェント番号をファイルに書き込む
+    std::fs::write(&file_path, &agent_number)
+        .map_err(|e| format!("エージェント番号書き込みエラー: {}", e))?;
+
+    // Windows の場合は attrib コマンドでファイルに隠し属性（+H）を付与する
+    // （Unix 系では `.` 始まりのファイル名が自動的に隠しファイル扱いになるため不要）
+    #[cfg(target_os = "windows")]
+    {
+        if let Some(path_str) = file_path.to_str() {
+            // attrib +H でファイルを隠しファイルに設定する
+            // 失敗してもファイル自体の保存は成功しているため、エラーは無視する
+            let _ = std::process::Command::new("attrib")
+                .args(["+H", path_str])
+                .output();
+        }
+    }
+
+    Ok(())
+}
+
+// =====================================================
+// Tauri コマンド: エージェントを初回登録する
+// =====================================================
+
+/// エージェントを初回登録してエージェント番号を発行してもらう。
+///
+/// エージェントアプリ起動時にローカルファイルにエージェント番号が存在しない場合に呼び出す。
+/// バックエンドの POST /api/v1/agent/register にホスト名を送信し、
+/// 発行されたエージェント番号（"AGT-XXXXXXXX" 形式）を返す。
+///
+/// # Arguments
+/// * `api_url`  - バックエンドの API ベース URL（例: "http://localhost:8080/api/v1"）
+/// * `hostname` - エージェントが動作する PC のホスト名
+///
+/// # Returns
+/// 登録成功時は `Ok("AGT-XXXXXXXX")` 形式のエージェント番号、
+/// 失敗時は `Err(エラーメッセージ)` を返す。
+#[tauri::command]
+async fn register_agent(api_url: String, hostname: String) -> Result<String, String> {
+    let client = reqwest::Client::new();
+    // URL を組み立てる（末尾スラッシュを除去してから追記）
+    let url = format!("{}/agent/register", api_url.trim_end_matches('/'));
+
+    // リクエストボディ: {"hostname": "..."}
+    let body = serde_json::json!({ "hostname": hostname });
+
+    let response = client
+        .post(&url)
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| format!("登録エラー: {}", e))?;
+
+    if response.status().is_success() {
+        // レスポンス例: {"success": true, "data": "AGT-A1B2C3D4"}
+        let json: serde_json::Value = response
+            .json()
+            .await
+            .map_err(|e| format!("レスポンス解析エラー: {}", e))?;
+
+        // "data" フィールドからエージェント番号を取得する
+        let agent_number = json["data"]
+            .as_str()
+            .ok_or_else(|| "エージェント番号が取得できませんでした".to_string())?
+            .to_string();
+
+        Ok(agent_number)
     } else {
         Err(format!("サーバーエラー: {}", response.status()))
     }
@@ -401,10 +736,32 @@ fn round1(value: f64) -> f64 {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        // ---- デバッグ設定 ----
+        // debug_assertions が true のビルド（`npm run tauri dev` = デバッグビルド）時のみ
+        // DevTools（ブラウザインスペクタ）を自動で開く。
+        // リリースビルド（`npm run tauri build`）では実行されない。
+        .setup(|app| {
+            #[cfg(debug_assertions)]
+            {
+                use tauri::Manager;
+                // メインウィンドウの DevTools を自動起動する
+                // Vue の console.log / console.error や Vue DevTools が利用可能になる
+                if let Some(window) = app.get_webview_window("main") {
+                    window.open_devtools();
+                    println!("[DEBUG] DevTools を起動しました");
+                }
+            }
+            Ok(())
+        })
         // 公開する Tauri コマンドを登録する
         .invoke_handler(tauri::generate_handler![
-            collect_pc_info, // PC 情報収集コマンド
-            send_report,     // バックエンド送信コマンド
+            load_config,                 // application.yml から API 設定を読み込むコマンド
+            collect_pc_info,             // PC 情報収集コマンド
+            send_report,                 // バックエンド送信コマンド
+            register_agent,              // エージェント初回登録コマンド
+            load_agent_number,           // エージェント番号をファイルから読み込むコマンド
+            save_agent_number,           // エージェント番号をファイルに保存するコマンド
+            fetch_asset_acquisition_type, // 起動時に取得区分をバックエンドから取得するコマンド
         ])
         .run(tauri::generate_context!())
         .expect("Tauriアプリケーションの起動に失敗しました");

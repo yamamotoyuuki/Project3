@@ -27,6 +27,8 @@ Update this file with build commands, architecture notes, and development workfl
 - エラーが発生したら自己解決を3回試み、それでも無理なら報告すること
 - セッションが途中で途切れることを想定して、こまめに現在の進捗をdocs/progress.mdに記録してください。次のセッションで再開できるよう、どこまで完了したかを書いてください。
 - 生成する成果物には、すべてコメントを記入すること（処理を説明するコメント、変数名の論理名など）
+- コメントには、環境依存文字を使用しないこと。英数字、記号は半角で記入すること
+- 変数名のネーミングは、アッパーキャメルケースを採用すること。
 
 ## 技術スタック
 | **区分** | **技術** | **バージョン** | **備考** |
@@ -44,3 +46,9 @@ Update this file with build commands, architecture notes, and development workfl
 ホスト名：localhost
 パスワード：pass
 データベース：project3
+
+## 不具合格納フォルダ
+./docs/issue
+
+##kubun 仕様変更格納フォルダ
+./docs/codeChange

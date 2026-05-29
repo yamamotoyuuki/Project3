@@ -12,7 +12,8 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 # Tauri 本体とプラグイン
-tauri = { version = "2", features = [] }
+# devtools: デバッグビルド時にブラウザインスペクタ（DevTools）を開くために必要
+tauri = { version = "2", features = ["devtools"] }
 tauri-plugin-shell = "2"
 
 # シリアライズ・デシリアライズ（AgentReport の JSON 変換）
@@ -33,6 +34,9 @@ chrono = { version = "0.4", features = ["serde"] }
 
 # ホスト名取得
 hostname = "0.3"
+
+# YAML設定ファイル読み込み（application.yml のパース）
+serde_yaml = "0.9"
 
 [features]
 default = ["custom-protocol"]
