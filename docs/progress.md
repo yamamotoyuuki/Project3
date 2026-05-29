@@ -1,6 +1,6 @@
 # 開発進捗記録
 
-最終更新: 2026-05-25
+最終更新: 2026-05-26
 
 ---
 
@@ -81,9 +81,37 @@
 
 ---
 
+---
+
+## ✅ codeChange01 完了（2026-05-26）
+
+### 仕様変更内容: エージェント番号システムの実装
+
+#### バックエンド変更
+- [x] `V3__add_agents_tables.sql`: agents テーブル（agent_number PK）・agent_history テーブル新設、pc_assets に agent_number カラム追加
+- [x] `Agent.java`: エージェントエンティティ新規作成
+- [x] `AgentRegisterRequest.java`: 初回登録リクエスト DTO 新規作成
+- [x] `AgentMapper.java`: findAgentByNumber / insertAgent / updateAgent 追加、updateAgentLastSeen に agentNumber パラメータ追加
+- [x] `AgentMapper.xml`: 上記3メソッドの SQL 追加、updateAgentLastSeen に agent_number 条件更新追加
+- [x] `AgentService.java`: register() メソッド追加（AGT-XXXXXXXX 形式発行）、processReport() に isNew フラグパターン実装
+- [x] `AgentController.java`: POST /api/v1/agent/register エンドポイント追加
+- [x] `PcAsset.java`: agentNumber フィールド追加
+- [x] `AssetResponse.java`: agentNumber フィールド追加
+- [x] `PcAssetMapper.xml`: resultMap・findAll・findById に agent_number 追加
+
+#### エージェントアプリ変更
+- [x] `lib.rs`: AgentReport に agent_number: Option<String> 追加、register_agent Tauri コマンド追加（invoke_handler 登録済み）
+- [x] `App.vue`: agentNumber ref・registerAgent()・onMounted の初期化シーケンス（PC情報収集→エージェント番号確認→未取得なら登録）、sendReport に agent_number 含める、設定タブにエージェント番号読み取り専用表示追加
+
+#### フロントエンド管理画面変更
+- [x] `types/index.ts`: PcAsset に agentNumber フィールド追加
+- [x] `AssetListView.vue`: エージェント番号カラム追加（colspan も 9 に更新）
+
+---
+
 ## 次セッションへの引き継ぎ
 
-**最後に完了したステップ**: Phase 4 完全完了
+**最後に完了したステップ**: codeChange01 完全完了
 
 ### 残り課題（オプション）
 1. **操作ログ閲覧 UI**: 管理者向けに /admin/logs 画面追加
@@ -98,3 +126,4 @@
 - backend コンパイル: `$env:JAVA_HOME = "..."; .\gradlew.bat compileJava`
 - ログインパスワード: admin / Admin@1234
 - エクスポート URL: /api/v1/export/assets.csv, /api/v1/export/assets.xlsx, /api/v1/export/loans.csv
+- Flyway マイグレーション: V2（user_name カラム）、V3（agents/agent_history テーブル、pc_assets.agent_number カラム）が適用済みであること

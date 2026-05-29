@@ -127,7 +127,9 @@ export interface PcAsset {
   location:             string | null   // 設置場所
   status:               PcStatus        // 現在のステータス
   assignedEmployeeId:   number | null   // 割り当て中の社員 ID（null = 未割り当て）
-  assignedEmployeeName: string | null   // 割り当て中の社員名（表示用）
+  assignedEmployeeName: string | null   // 割り当て中の社員名（JOINで取得、表示優先度: 高）
+  userName:             string | null   // エージェントが報告した使用者名テキスト（表示優先度: 低）
+  agentNumber:          string | null   // エージェント番号（例: "AGT-A1B2C3D4"、エージェント未導入は null）
   hostname:             string | null   // PC のホスト名（エージェント連携用）
   agentLastSeen:        string | null   // エージェント最終通信日時（ISO 8601）
   note:                 string | null   // 備考
@@ -217,13 +219,14 @@ export interface EmployeeCreateRequest {
 
 /** 社員更新リクエスト */
 export interface EmployeeUpdateRequest {
-  fullName:    string   // 氏名（必須）
-  department?: string   // 部署名
-  position?:   string   // 役職
-  email?:      string   // メールアドレス
-  phone?:      string   // 電話番号
-  location?:   string   // 所属拠点
-  isActive?:   boolean  // 在職フラグ（false = 退職処理）
+  employeeCode?: string  // 社員コード（指定時のみ変更・一意チェックあり）
+  fullName:      string  // 氏名（必須）
+  department?:   string  // 部署名
+  position?:     string  // 役職
+  email?:        string  // メールアドレス
+  phone?:        string  // 電話番号
+  location?:     string  // 所属拠点
+  isActive?:     boolean // 在職フラグ（false = 退職処理）
 }
 
 // =====================================================

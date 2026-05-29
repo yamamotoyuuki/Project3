@@ -17,6 +17,10 @@
         <result property="status"               column="status"/>
         <result property="assignedEmployeeId"   column="assigned_employee_id"/>
         <result property="assignedEmployeeName" column="assigned_employee_name"/>
+        <!-- エージェントが報告した使用者名（自由テキスト）を user_name カラムからマッピング -->
+        <result property="userName"             column="user_name"/>
+        <!-- エージェント番号（agents テーブルとの紐付けキー） -->
+        <result property="agentNumber"          column="agent_number"/>
         <result property="hostname"             column="hostname"/>
         <result property="agentLastSeen"        column="agent_last_seen"/>
         <result property="note"                 column="note"/>
@@ -61,6 +65,8 @@
             a.status,
             a.assigned_employee_id,
             e.full_name AS assigned_employee_name,
+            a.user_name,
+            a.agent_number,
             a.hostname,
             a.agent_last_seen,
             a.note,
@@ -93,6 +99,8 @@
             a.status,
             a.assigned_employee_id,
             e.full_name AS assigned_employee_name,
+            a.user_name,
+            a.agent_number,
             a.hostname,
             a.agent_last_seen,
             a.note,
@@ -124,6 +132,8 @@
     </insert>
 
     <!-- 更新 -->
+    <!-- location（設置場所）はエージェントが AgentMapper.updateAgentLastSeen で更新するため、
+         手動編集の UPDATE では対象外とする -->
     <update id="update">
         UPDATE pc_assets SET
             device_name          = #{deviceName},
@@ -131,7 +141,6 @@
             maker                = #{maker},
             model_number         = #{modelNumber},
             serial_number        = #{serialNumber},
-            location             = #{location},
             status               = #{status},
             assigned_employee_id = #{assignedEmployeeId},
             hostname             = #{hostname},

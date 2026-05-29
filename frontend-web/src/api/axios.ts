@@ -50,12 +50,22 @@ apiClient.interceptors.response.use(
   // 正常レスポンス: そのまま通過させる
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    const status = error.response?.status
+    if (status === 401) {
       // HTTP 401: トークン期限切れ / 不正なトークン
       // → ストアの状態と localStorage をクリアしてログイン画面へ強制リダイレクト
       const authStore = useAuthStore()
       authStore.logout()
       window.location.href = '/login'
+    } else if (status === 403) {
+      // HTTP 403: 権限不足 or Spring Security が未認証リクエストに返す場合
+      // → ログイン画面ではない場合のみリダイレクト（ログイン済みユーザーの権限不足は除外）
+      const token = localStorage.getItem('token')
+      if (!token) {
+        // トークン未保持の場合は未認証とみなしてログイン画面へリダイレクト
+        window.location.href = '/login'
+      }
+      // トークンがある場合は 403 をそのまま呼び出し元に返す（権限不足エラーとして表示）
     }
     return Promise.reject(error)
   }

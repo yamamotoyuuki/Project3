@@ -59,6 +59,21 @@ public class PcAsset {
     /** 現在割り当てられている社員の ID（employees テーブルの外部キー） */
     private Long assignedEmployeeId;
 
+    /**
+     * エージェントが報告した使用者名（自由テキスト）
+     * <p>agents からの報告時に直接保存される。
+     * {@code assignedEmployeeId} とは独立して管理し、
+     * 社員マスタに一致しない場合でもエージェント入力値を表示できるようにする。</p>
+     */
+    private String userName;
+
+    /**
+     * エージェント番号（agents テーブルとの紐付けキー）
+     * <p>エージェントアプリが初回登録時に取得した識別子（例: "AGT-A1B2C3D4"）。
+     * エージェント未導入の場合は null。</p>
+     */
+    private String agentNumber;
+
     /** エージェントが認識しているホスト名（ネットワーク識別名） */
     private String hostname;
 

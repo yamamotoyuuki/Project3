@@ -1,0 +1,6 @@
+# .cargo/config.toml
+# Cargo HTTP設定
+# Windows Schannel の証明書失効チェックエラーを回避するため check-revoke を無効化
+
+[http]
+check-revoke = false

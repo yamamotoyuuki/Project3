@@ -34,8 +34,7 @@ public class AssetUpdateRequest {
     /** シリアル番号（任意） */
     private String serialNumber;
 
-    /** 設置場所・保管場所（任意） */
-    private String location;
+    // location（設置場所）はエージェントが自動更新するため更新リクエストには含めない
 
     /**
      * 資産ステータス（必須）

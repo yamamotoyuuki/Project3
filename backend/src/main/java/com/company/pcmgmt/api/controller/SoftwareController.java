@@ -52,7 +52,7 @@ public class SoftwareController {
      * @return ソフトウェアレスポンス（インストール数含む）
      */
     @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<SoftwareResponse>> findById(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<SoftwareResponse>> findById(@PathVariable("id") Long id) {
         return ResponseEntity.ok(ApiResponse.success(softwareService.findById(id)));
     }
 
@@ -86,7 +86,7 @@ public class SoftwareController {
      */
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<SoftwareResponse>> update(
-            @PathVariable Long id,
+            @PathVariable("id") Long id,
             @Valid @RequestBody SoftwareCreateRequest req) {
         return ResponseEntity.ok(ApiResponse.success("ソフトウェアを更新しました", softwareService.update(id, req)));
     }

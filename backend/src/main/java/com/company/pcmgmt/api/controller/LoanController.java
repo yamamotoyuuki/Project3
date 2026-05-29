@@ -53,7 +53,7 @@ public class LoanController {
      * @return 貸出レスポンス
      */
     @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<LoanResponse>> findById(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<LoanResponse>> findById(@PathVariable("id") Long id) {
         return ResponseEntity.ok(ApiResponse.success(loanService.findById(id)));
     }
 
@@ -94,7 +94,7 @@ public class LoanController {
     @Loggable(operation = "RETURN", targetType = "貸出")
     @PutMapping("/{id}/return")
     public ResponseEntity<ApiResponse<LoanResponse>> returnLoan(
-            @PathVariable Long id,
+            @PathVariable("id") Long id,
             @Valid @RequestBody LoanReturnRequest req) {
         return ResponseEntity.ok(ApiResponse.success("返却を登録しました", loanService.returnLoan(id, req)));
     }

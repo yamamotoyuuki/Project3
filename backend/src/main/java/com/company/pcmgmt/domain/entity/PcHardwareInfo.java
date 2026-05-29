@@ -18,8 +18,12 @@ public class PcHardwareInfo {
     /** ハードウェア情報ID（主キー、自動採番） */
     private Long id;
 
-    /** 対象PC資産のID（pc_assets テーブルの外部キー） */
-    private Long pcAssetId;
+    /**
+     * エージェント番号（agents テーブルとの紐付けキー）
+     * <p>V4 マイグレーションにて pc_asset_id から変更。
+     * エージェントが収集したハードウェア情報はエージェント番号で識別する。</p>
+     */
+    private String agentNumber;
 
     /** CPU モデル名（例: "Intel Core i7-1365U"） */
     private String cpuModel;

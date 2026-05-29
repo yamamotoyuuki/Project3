@@ -47,10 +47,13 @@
             <dd class="mono">{{ asset.serialNumber || '—' }}</dd>
             <dt>ホスト名</dt>
             <dd class="mono">{{ asset.hostname || '—' }}</dd>
-            <dt>場所</dt>
+            <dt>設置場所</dt>
+            <!-- エージェントが報告した設置場所を表示（読み取り専用） -->
             <dd>{{ asset.location || '—' }}</dd>
             <dt>使用者</dt>
-            <dd>{{ asset.assignedEmployeeName || '—' }}</dd>
+            <!-- 社員マスタと連携できた場合は assignedEmployeeName、
+                 エージェント入力のみの場合は userName を表示 -->
+            <dd>{{ asset.assignedEmployeeName || asset.userName || '—' }}</dd>
             <dt>エージェント最終確認</dt>
             <dd>{{ formatDate(asset.agentLastSeen) }}</dd>
             <dt>登録日時</dt>
@@ -110,10 +113,7 @@
             <label>ホスト名</label>
             <input v-model="form.hostname" class="input" />
           </div>
-          <div class="form-group">
-            <label>場所</label>
-            <input v-model="form.location" class="input" />
-          </div>
+          <!-- 設置場所はエージェントが自動更新するため編集不可 -->
           <div class="form-group">
             <label>使用者</label>
             <select v-model="form.assignedEmployeeId" class="select">
@@ -215,7 +215,7 @@ const form = reactive({
   modelNumber: '',
   serialNumber: '',
   hostname: '',
-  location: '',
+  // location はエージェントが自動更新するため編集フォームには含めない
   assignedEmployeeId: null as number | null,
   note: '',
 })
@@ -230,7 +230,7 @@ function openEdit() {
     modelNumber: asset.value.modelNumber ?? '',
     serialNumber: asset.value.serialNumber ?? '',
     hostname: asset.value.hostname ?? '',
-    location: asset.value.location ?? '',
+    // location はエージェントが自動設定するため編集フォームにセットしない
     assignedEmployeeId: asset.value.assignedEmployeeId,
     note: asset.value.note ?? '',
   })
@@ -252,7 +252,7 @@ async function saveAsset() {
       modelNumber: form.modelNumber || undefined,
       serialNumber: form.serialNumber || undefined,
       hostname: form.hostname || undefined,
-      location: form.location || undefined,
+      // location はエージェントが自動設定するため更新リクエストに含めない
       assignedEmployeeId: form.assignedEmployeeId,
       note: form.note || undefined,
     })

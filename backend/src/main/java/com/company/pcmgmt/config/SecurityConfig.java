@@ -1,6 +1,7 @@
 package com.company.pcmgmt.config;
 
 import com.company.pcmgmt.security.JwtAuthenticationFilter;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -74,6 +75,8 @@ public class SecurityConfig {
                 .requestMatchers("/api/v1/agent/report").permitAll()
                 // エージェント初回登録（認証なしで自動実行）
                 .requestMatchers("/api/v1/agent/register").permitAll()
+                // エージェント起動時の資産情報取得（購入/レンタル区分確認用、認証なしで自動実行）
+                .requestMatchers("/api/v1/agent/asset-info").permitAll()
                 // ヘルスチェック（監視ツール等からの疎通確認）
                 .requestMatchers("/actuator/health").permitAll()
                 // ---- 管理者のみアクセス可能 ----
@@ -81,6 +84,18 @@ public class SecurityConfig {
                 .requestMatchers("/api/v1/users/**").hasRole("ADMIN")
                 // ---- その他は認証必須 ----
                 .anyRequest().authenticated()
+            )
+            // ---- 例外ハンドリング設定 ----
+            .exceptionHandling(ex -> ex
+                // 未認証リクエスト（JWTなし/期限切れ）には 401 Unauthorized を返す
+                // ※ 設定しない場合 Spring Security は 403 を返すため明示的に設定する
+                .authenticationEntryPoint((request, response, authException) -> {
+                    response.setStatus(HttpServletResponse.SC_UNAUTHORIZED); // 401
+                    response.setContentType("application/json;charset=UTF-8");
+                    response.getWriter().write(
+                        "{\"success\":false,\"message\":\"認証が必要です。ログインしてください。\"}"
+                    );
+                })
             )
             // JWT フィルターを UsernamePasswordAuthenticationFilter の前に挿入
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

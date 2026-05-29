@@ -126,6 +126,16 @@ public class EmployeeService {
             throw new ResourceNotFoundException("社員が見つかりません: id=" + id);
         }
 
+        // 社員コードが指定された場合のみ更新（null は変更なしと見なす）
+        if (req.getEmployeeCode() != null && !req.getEmployeeCode().isBlank()) {
+            // 自分自身を除いた重複チェック（他の社員が同じコードを持っていないか）
+            if (employeeMapper.existsByEmployeeCode(req.getEmployeeCode(), id)) {
+                throw new IllegalArgumentException(
+                    "社員コード [" + req.getEmployeeCode() + "] は既に使用されています");
+            }
+            existing.setEmployeeCode(req.getEmployeeCode()); // 社員コード変更
+        }
+
         // 既存エンティティに更新値をセット
         existing.setFullName(req.getFullName());      // 氏名
         existing.setDepartment(req.getDepartment());  // 部署

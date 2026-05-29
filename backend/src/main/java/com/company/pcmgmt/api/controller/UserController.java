@@ -54,7 +54,7 @@ public class UserController {
      * @return ユーザーレスポンス
      */
     @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<UserResponse>> findById(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<UserResponse>> findById(@PathVariable("id") Long id) {
         return ResponseEntity.ok(ApiResponse.success(userService.findById(id)));
     }
 
@@ -93,7 +93,7 @@ public class UserController {
      */
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<UserResponse>> update(
-            @PathVariable Long id,
+            @PathVariable("id") Long id,
             @Valid @RequestBody UserUpdateRequest req) {
         return ResponseEntity.ok(ApiResponse.success("ユーザーを更新しました", userService.update(id, req)));
     }

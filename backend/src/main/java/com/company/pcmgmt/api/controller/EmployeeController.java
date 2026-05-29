@@ -73,7 +73,7 @@ public class EmployeeController {
      * @return 社員レスポンス
      */
     @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<EmployeeResponse>> findById(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<EmployeeResponse>> findById(@PathVariable("id") Long id) {
         return ResponseEntity.ok(ApiResponse.success(employeeService.findById(id)));
     }
 
@@ -110,7 +110,7 @@ public class EmployeeController {
      */
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<EmployeeResponse>> update(
-            @PathVariable Long id,
+            @PathVariable("id") Long id,
             @Valid @RequestBody EmployeeUpdateRequest req) {
         return ResponseEntity.ok(ApiResponse.success("社員情報を更新しました", employeeService.update(id, req)));
     }

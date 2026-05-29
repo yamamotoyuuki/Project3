@@ -56,7 +56,7 @@ public class RentalController {
      * @return レンタル契約レスポンス
      */
     @GetMapping("/api/v1/rentals/{id}")
-    public ResponseEntity<ApiResponse<RentalResponse>> findById(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<RentalResponse>> findById(@PathVariable("id") Long id) {
         return ResponseEntity.ok(ApiResponse.success(rentalService.findById(id)));
     }
 
@@ -91,7 +91,7 @@ public class RentalController {
      * @return 更新後のレンタル契約レスポンス
      */
     @PutMapping("/api/v1/rentals/{id}/return")
-    public ResponseEntity<ApiResponse<RentalResponse>> returnRental(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<RentalResponse>> returnRental(@PathVariable("id") Long id) {
         return ResponseEntity.ok(ApiResponse.success("返却を登録しました", rentalService.returnRental(id)));
     }
 
@@ -120,7 +120,7 @@ public class RentalController {
      * @return ベンダーレスポンス
      */
     @GetMapping("/api/v1/rental-vendors/{id}")
-    public ResponseEntity<ApiResponse<RentalVendorResponse>> findVendorById(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<RentalVendorResponse>> findVendorById(@PathVariable("id") Long id) {
         return ResponseEntity.ok(ApiResponse.success(rentalService.findVendorById(id)));
     }
 
@@ -155,7 +155,7 @@ public class RentalController {
      */
     @PutMapping("/api/v1/rental-vendors/{id}")
     public ResponseEntity<ApiResponse<RentalVendorResponse>> updateVendor(
-            @PathVariable Long id,
+            @PathVariable("id") Long id,
             @Valid @RequestBody RentalVendorCreateRequest req) {
         return ResponseEntity.ok(ApiResponse.success("ベンダーを更新しました", rentalService.updateVendor(id, req)));
     }

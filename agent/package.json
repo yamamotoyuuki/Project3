@@ -5,16 +5,19 @@
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc && vite build",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "tauri:dev": "npm run tauri -- dev",
+    "tauri:dev:log": "cross-env RUST_LOG=debug npm run tauri -- dev"
   },
   "dependencies": {
-    "vue": "^3.4.21",
     "@tauri-apps/api": "^2.0.0",
-    "axios": "^1.6.8"
+    "axios": "^1.6.8",
+    "vue": "^3.4.21"
   },
   "devDependencies": {
-    "@vitejs/plugin-vue": "^5.0.4",
     "@tauri-apps/cli": "^2.0.0",
+    "@vitejs/plugin-vue": "^5.0.4",
+    "cross-env": "^10.1.0",
     "typescript": "^5.4.0",
     "vite": "^5.2.0",
     "vue-tsc": "^2.0.6"

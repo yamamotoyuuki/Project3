@@ -65,6 +65,7 @@
 
     <update id="update">
         UPDATE employees SET
+            employee_code = #{employeeCode},
             full_name   = #{fullName},
             department  = #{department},
             position    = #{position},

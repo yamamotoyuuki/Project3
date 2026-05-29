@@ -63,6 +63,18 @@ tasks.named('test') {
     useJUnitPlatform()
 }
 
+/**
+ * Java コンパイルオプション
+ *
+ * -parameters: メソッド引数名をクラスファイルに保持する。
+ * Spring Framework 6 以降（Spring Boot 3.x）では、
+ * @PathVariable / @RequestParam 等のアノテーションで引数名を明示しない場合、
+ * このフラグがないとリフレクションで引数名を解決できずエラーになる。
+ */
+tasks.withType(JavaCompile).configureEach {
+    options.compilerArgs.add('-parameters')
+}
+
 // Fat JAR
 jar {
     enabled = false

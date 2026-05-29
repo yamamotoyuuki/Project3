@@ -20,6 +20,7 @@ Thumbs.db
 # Backend (Java / Gradle)
 # ==============================
 backend/build/
+backend/bin/
 backend/.gradle/
 backend/out/
 backend/*.class

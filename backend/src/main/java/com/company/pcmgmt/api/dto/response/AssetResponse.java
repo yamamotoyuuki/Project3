@@ -48,6 +48,20 @@ public class AssetResponse {
     /** 割り当て社員のフルネーム（JOINで取得、未割り当ての場合は null） */
     private String assignedEmployeeName;
 
+    /**
+     * エージェントが報告した使用者名（自由テキスト）
+     * <p>社員マスタと紐付かない場合でもエージェント入力値を表示するために保持する。
+     * 表示優先度: assignedEmployeeName &gt; userName</p>
+     */
+    private String userName;
+
+    /**
+     * エージェント番号（エージェント端末固有の識別子）
+     * <p>エージェントアプリが初回登録時に取得した値（例: "AGT-A1B2C3D4"）。
+     * エージェント未導入の場合は null。</p>
+     */
+    private String agentNumber;
+
     /** ホスト名（エージェントが認識しているネットワーク名） */
     private String hostname;
 

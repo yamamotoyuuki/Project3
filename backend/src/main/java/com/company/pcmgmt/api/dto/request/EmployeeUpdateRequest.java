@@ -7,10 +7,17 @@ import lombok.Data;
  * 社員情報更新リクエスト DTO
  *
  * <p>PUT /api/v1/employees/{id} のリクエストボディにマッピングされる。
- * 社員コードは変更不可のため含まない。退職処理は {@code isActive=false} で行う。</p>
+ * 社員コードは誤入力訂正を想定して変更可能。退職処理は {@code isActive=false} で行う。</p>
  */
 @Data
 public class EmployeeUpdateRequest {
+
+    /**
+     * 社員コード（任意）
+     * 指定した場合は一意チェックを行い、重複があればエラーとする。
+     * null または未指定の場合は現在の値を維持する。
+     */
+    private String employeeCode;
 
     /** 社員のフルネーム（氏名、必須） */
     @NotBlank(message = "氏名は必須です")

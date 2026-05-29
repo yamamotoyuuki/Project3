@@ -84,11 +84,16 @@
       <div class="modal">
         <h3 class="modal-title">{{ editTarget ? '社員編集' : '社員登録' }}</h3>
         <div class="form-grid">
-          <div v-if="!editTarget" class="form-group">
+          <!-- 社員コード: 登録・編集どちらでも入力可能（誤入力の訂正を考慮） -->
+          <div class="form-group">
             <label>社員コード <span class="required">*</span></label>
-            <input v-model="form.employeeCode" class="input" placeholder="例: EMP001" />
+            <input
+              v-model="form.employeeCode"
+              class="input"
+              placeholder="例: EMP001"
+            />
           </div>
-          <div class="form-group" :class="{ full: !editTarget ? false : true }">
+          <div class="form-group">
             <label>氏名 <span class="required">*</span></label>
             <input v-model="form.fullName" class="input" placeholder="例: 山田 太郎" />
           </div>
@@ -221,13 +226,14 @@ function openCreate() {
 function openEdit(e: Employee) {
   editTarget.value = e
   Object.assign(form, {
-    fullName: e.fullName,
-    department: e.department ?? '',
-    position: e.position ?? '',
-    email: e.email ?? '',
-    phone: e.phone ?? '',
-    location: e.location ?? '',
-    isActive: e.isActive,
+    employeeCode: e.employeeCode,  // 社員コードを現在値でセット（編集可能）
+    fullName:     e.fullName,
+    department:   e.department ?? '',
+    position:     e.position ?? '',
+    email:        e.email ?? '',
+    phone:        e.phone ?? '',
+    location:     e.location ?? '',
+    isActive:     e.isActive,
   })
   formError.value = ''
   showModal.value = true
@@ -237,29 +243,33 @@ function closeModal() { showModal.value = false }
 
 async function saveEmployee() {
   formError.value = ''
-  if (!form.fullName) { formError.value = '氏名は必須です'; return }
+  // 社員コードは登録・編集ともに必須
+  if (!form.employeeCode) { formError.value = '社員コードは必須です'; return }
+  if (!form.fullName)     { formError.value = '氏名は必須です';       return }
   saving.value = true
   try {
     if (editTarget.value) {
+      // 更新: 社員コード変更を含めて送信（バックエンドで重複チェックあり）
       await employeesApi.update(editTarget.value.id, {
-        fullName: form.fullName,
-        department: form.department || undefined,
-        position: form.position || undefined,
-        email: form.email || undefined,
-        phone: form.phone || undefined,
-        location: form.location || undefined,
-        isActive: form.isActive,
+        employeeCode: form.employeeCode,
+        fullName:     form.fullName,
+        department:   form.department || undefined,
+        position:     form.position   || undefined,
+        email:        form.email      || undefined,
+        phone:        form.phone      || undefined,
+        location:     form.location   || undefined,
+        isActive:     form.isActive,
       })
     } else {
-      if (!form.employeeCode) { formError.value = '社員コードは必須です'; return }
+      // 新規登録
       await employeesApi.create({
         employeeCode: form.employeeCode,
-        fullName: form.fullName,
-        department: form.department || undefined,
-        position: form.position || undefined,
-        email: form.email || undefined,
-        phone: form.phone || undefined,
-        location: form.location || undefined,
+        fullName:     form.fullName,
+        department:   form.department || undefined,
+        position:     form.position   || undefined,
+        email:        form.email      || undefined,
+        phone:        form.phone      || undefined,
+        location:     form.location   || undefined,
       })
     }
     closeModal()

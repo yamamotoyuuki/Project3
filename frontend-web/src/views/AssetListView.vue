@@ -57,12 +57,13 @@
                 <th>取得区分</th>
                 <th>使用者</th>
                 <th>場所</th>
+                <th>エージェント番号</th>
                 <th>操作</th>
               </tr>
             </thead>
             <tbody>
               <tr v-if="assets.length === 0">
-                <td colspan="8" class="empty">データがありません</td>
+                <td colspan="9" class="empty">データがありません</td>
               </tr>
               <tr
                 v-for="a in assets"
@@ -81,8 +82,11 @@
                     {{ a.acquisitionType === 'RENTAL' ? 'レンタル' : '購入' }}
                   </span>
                 </td>
-                <td>{{ a.assignedEmployeeName || '—' }}</td>
+                <!-- 社員マスタ連携あり: assignedEmployeeName、エージェント入力のみ: userName -->
+                <td>{{ a.assignedEmployeeName || a.userName || '—' }}</td>
                 <td class="small-text">{{ a.location || '—' }}</td>
+                <!-- エージェント番号（未導入の場合は「—」を表示） -->
+                <td class="mono small-text">{{ a.agentNumber || '—' }}</td>
                 <td @click.stop>
                   <button
                     v-if="authStore.isItStaff"

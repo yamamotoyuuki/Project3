@@ -56,7 +56,7 @@ public class PcAssetController {
      * @return PC資産レスポンス
      */
     @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<AssetResponse>> findById(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<AssetResponse>> findById(@PathVariable("id") Long id) {
         return ResponseEntity.ok(ApiResponse.success(pcAssetService.findById(id)));
     }
 
@@ -97,7 +97,7 @@ public class PcAssetController {
     @Loggable(operation = "UPDATE", targetType = "PC資産")
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<AssetResponse>> update(
-            @PathVariable Long id,
+            @PathVariable("id") Long id,
             @Valid @RequestBody AssetUpdateRequest req) {
         return ResponseEntity.ok(ApiResponse.success("PC資産を更新しました", pcAssetService.update(id, req)));
     }
@@ -115,7 +115,7 @@ public class PcAssetController {
      */
     @Loggable(operation = "DELETE", targetType = "PC資産")
     @DeleteMapping("/{id}")
-    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable("id") Long id) {
         pcAssetService.delete(id);
         // 削除成功時は data=null で返す
         return ResponseEntity.ok(ApiResponse.success("PC資産を削除しました", null));

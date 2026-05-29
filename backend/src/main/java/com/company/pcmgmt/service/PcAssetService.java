@@ -120,7 +120,7 @@ public class PcAssetService {
         existing.setMaker(req.getMaker());                     // メーカー
         existing.setModelNumber(req.getModelNumber());         // 型番
         existing.setSerialNumber(req.getSerialNumber());       // シリアル番号
-        existing.setLocation(req.getLocation());               // 設置場所
+        // location（設置場所）はエージェントが自動更新するため手動編集では変更しない
         existing.setStatus(req.getStatus());                   // ステータス
         existing.setAssignedEmployeeId(req.getAssignedEmployeeId()); // 担当社員ID
         existing.setHostname(req.getHostname());               // ホスト名
