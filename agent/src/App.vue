@@ -25,7 +25,9 @@
 
     <!-- ヘッダー（アプリ名・バージョン表示） -->
     <header class="agent-header">
-      <span>🖥️ PC管理エージェント</span>
+      <!-- imageフォルダのアイコン画像を読み込む（規約: アイコンは画像化してimageフォルダに格納） -->
+      <img src="./image/icon-pc.svg" class="header-icon" alt="PC管理エージェント" />
+      <span>PC管理エージェント</span>
       <span class="version">v1.0.0</span>
     </header>
 
@@ -65,7 +67,9 @@
           <span>{{ pcInfo.os.name }} {{ pcInfo.os.version }}</span>
         </div>
         <!-- ネットワーク IP アドレス（複数 NIC 対応） -->
-        <div v-for="(nic, idx) in pcInfo.network" :key="idx" class="info-row">
+        <!-- :key に IP アドレスを使用する。MAC は現バージョンで "N/A" 固定のため使用不可。 -->
+        <!-- IP は NIC ごとに一意であり、追加・削除時も正しく差分更新される。          -->
+        <div v-for="(nic, idx) in pcInfo.network" :key="nic.ip" class="info-row">
           <span class="info-label">IPアドレス {{ idx > 0 ? idx + 1 : '' }}</span>
           <span>{{ nic.ip }}</span>
         </div>
@@ -92,15 +96,20 @@
 
       <!-- 送信前に資産番号の設定を促す警告 -->
       <div v-if="!settings.assetNumber" class="warning-alert">
-        ⚠️ 設定画面で管理番号（資産番号）を入力してください
+        <!-- 警告アイコン画像（imageフォルダより読み込み） -->
+        <img src="./image/icon-warning.svg" class="inline-icon" alt="warning" />
+        設定画面で管理番号（資産番号）を入力してください
       </div>
 
-      <!-- 送信ステータスメッセージ -->
-      <p class="status-msg" :class="sendStatus.type">{{ sendStatus.message }}</p>
+      <!-- 送信ステータスメッセージ（type に応じてimageフォルダのアイコン画像を表示） -->
+      <p class="status-msg" :class="[sendStatus.type, { fading: isSendStatusFading }]">
+        <img v-if="sendStatus.type === 'success'" src="./image/icon-success.svg" class="status-icon" alt="success" />
+        <img v-else-if="sendStatus.type === 'error'" src="./image/icon-error.svg" class="status-icon" alt="error" />
+        {{ sendStatus.message }}
+      </p>
 
       <!-- 送信ボタン（PC情報未収集またはエージェント番号未取得の場合は disabled） -->
-      <button class="btn-primary" @click="sendReport"
-        :disabled="!pcInfo || !settings.assetNumber || !agentNumber">
+      <button class="btn-primary" @click="sendReport" :disabled="!pcInfo || !settings.assetNumber || !agentNumber">
         手動送信
       </button>
     </div>
@@ -118,12 +127,12 @@
       </div>
 
       <!-- バックエンド API URL（application.yml から読み込み・読み取り専用） -->
-      <div class="form-group">
+      <!-- <div class="form-group">
         <label>API URL</label>
         <input :value="apiUrl" disabled class="input-readonly"
           title="application.yml で設定されたバックエンドAPIのURL（管理者のみ変更可）" />
         <span class="hint-text">※ application.yml で管理者が設定します</span>
-      </div>
+      </div> -->
 
       <!-- 設置場所入力（pc_assetsのlocationカラムに登録される） -->
       <div class="form-group">
@@ -163,11 +172,82 @@
 
       <!--
         保存 / 新規登録ボタン
-        - エージェント番号取得済み: 「保存」→ そのまま saveSettings を実行
+        - エージェント番号取得済み: 「保存」→ そのまま saveSettings を実行（画面遷移なし）
         - エージェント番号未取得 : 「新規登録」→ 確認モーダルを表示してから送信
       -->
       <button v-if="agentNumber" class="btn-primary" @click="saveSettings">保存</button>
       <button v-else class="btn-primary btn-register" @click="onNewRegisterClick">新規登録</button>
+
+      <!-- 送信結果メッセージ（保存ボタン押下後に表示。imageフォルダのアイコン画像を使用） -->
+      <p v-if="sendStatus.type" class="status-msg" :class="[sendStatus.type, { fading: isSendStatusFading }]">
+        <img v-if="sendStatus.type === 'success'" src="./image/icon-success.svg" class="status-icon" alt="success" />
+        <img v-else-if="sendStatus.type === 'error'" src="./image/icon-error.svg" class="status-icon" alt="error" />
+        {{ sendStatus.message }}
+      </p>
+
+      <!-- ======================================================
+           WindowsUpdate 適用判定
+           ====================================================== -->
+      <div class="form-group win-update-section">
+        <!-- ボタン＋件数メッセージを横並びで表示 -->
+        <div class="win-update-row">
+          <button class="btn-primary btn-win-update" :disabled="isWinUpdateLoading" @click="runWindowsUpdateJudgment">
+            WindowsUpdate 適用判定
+          </button>
+          <!-- ボタン横のステータスメッセージ（処理中 / 件数 / エラー）          -->
+          <!-- アイコンは winUpdateMessageType に応じてimageフォルダの画像を読み込む -->
+          <span v-if="winUpdateMessage" class="win-update-status" :class="{
+              'win-update-status--loading': isWinUpdateLoading,
+              'win-update-status--ok'     : winUpdateMessageType === 'ok',
+              'win-update-status--warn'   : winUpdateMessageType === 'warn',
+              'win-update-status--error'  : winUpdateMessageType === 'error',
+              fading                      : isWinUpdateMessageFading,
+            }">
+            <img v-if="winUpdateMessageType === 'ok'"   src="./image/icon-success.svg" class="status-icon" alt="success" />
+            <img v-else-if="winUpdateMessageType === 'warn'"  src="./image/icon-warning.svg" class="status-icon" alt="warning" />
+            <img v-else-if="winUpdateMessageType === 'error'" src="./image/icon-error.svg"   class="status-icon" alt="error" />
+            {{ winUpdateMessage }}
+          </span>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- =====================
+         PC情報取得 完了トースト
+         PC情報タブでのみ表示。画面中央（メモリとディスク総容量の高さあたり）に重ねて表示する。
+         ===================== -->
+    <div v-if="currentView === 'info' && collectStatus.type" class="info-status-overlay">
+      <p class="status-msg" :class="[collectStatus.type, { fading: isCollectStatusFading }]">
+        <!-- imageフォルダのアイコン画像を type に応じて読み込む -->
+        <img v-if="collectStatus.type === 'success'" src="./image/icon-success.svg" class="status-icon" alt="success" />
+        <img v-else-if="collectStatus.type === 'error'" src="./image/icon-error.svg" class="status-icon" alt="error" />
+        {{ collectStatus.message }}
+      </p>
+    </div>
+
+    <!-- =====================
+         WindowsUpdate 未適用一覧 ポップアップ
+         未適用の更新がある場合のみ表示。画面中央に重ねて表示し、×またはオーバーレイクリックで閉じる。
+         ===================== -->
+    <div v-if="isWinUpdatePopupVisible" class="modal-overlay" @click.self="isWinUpdatePopupVisible = false">
+      <div class="modal-content win-update-popup">
+        <!-- タイトル行 -->
+        <div class="win-update-popup-header">
+          <span class="win-update-popup-title">
+            <!-- imageフォルダの警告アイコン画像を読み込む -->
+            <img src="./image/icon-warning.svg" class="popup-title-icon" alt="warning" />
+            未適用の Windows Update
+          </span>
+          <button class="win-update-popup-close" @click="isWinUpdatePopupVisible = false">×</button>
+        </div>
+        <!-- 件数メッセージ -->
+        <p class="win-update-popup-count">{{ winUpdateMessage }}</p>
+        <!-- KB ID 一覧 -->
+        <ul class="win-update-popup-list">
+          <li v-for="kb in winUpdateKbIds" :key="kb" class="win-update-popup-item">{{ kb }}</li>
+        </ul>
+      </div>
     </div>
 
     <!-- =====================
@@ -177,7 +257,8 @@
       <div class="modal-content">
         <!-- 警告メッセージ -->
         <div class="modal-warning">
-          <span class="modal-warning-icon">⚠️</span>
+          <!-- imageフォルダに格納した警告アイコン画像を読み込む（規約: アイコンは画像化してimageフォルダに格納） -->
+          <img src="./image/icon-warning.svg" class="modal-warning-icon" alt="warning" />
           <p>PC情報をサーバーに送信します。個人所有のPCでないことを確認してください。</p>
         </div>
 
@@ -200,14 +281,18 @@
          ===================== -->
     <nav class="bottom-nav">
       <!-- アクティブなタブは active クラスでハイライト -->
+      <!-- 各タブのアイコンはimageフォルダの画像ファイルを使用（規約準拠） -->
       <button :class="{ active: currentView === 'info' }" @click="currentView = 'info'">
-        💻 PC情報
+        <img src="./image/icon-pc.svg" class="nav-tab-icon" alt="PC情報" />
+        PC情報
       </button>
       <button :class="{ active: currentView === 'send' }" @click="currentView = 'send'">
-        📤 送信
+        <img src="./image/icon-send.svg" class="nav-tab-icon" alt="送信" />
+        送信
       </button>
       <button :class="{ active: currentView === 'settings' }" @click="currentView = 'settings'">
-        ⚙️ 設定
+        <img src="./image/icon-settings.svg" class="nav-tab-icon" alt="設定" />
+        設定
       </button>
     </nav>
 
@@ -274,7 +359,7 @@
   /**
    * application.yml から読み込んだ API のベース URL
    * - 初期値は空文字（起動時に load_config() で設定される）
-   * - 読み込みに失敗した場合はデフォルト値 "http://localhost:8080/api/v1" が設定される
+   * - 読み込みに失敗した場合は .env の VITE_API_BASE_URL フォールバック値が設定される
    * - localStorage は使用しない（管理者が application.yml で一元管理する）
    */
   const apiUrl = ref('')
@@ -288,14 +373,208 @@
    */
   const agentNumber = ref < string | null > (null) // 起動時に load_agent_number で読み込む
 
+  /**
+   * PC情報取得ステータスメッセージ（type: 'success' | 'error' | ''）
+   * PC情報タブの「情報を取得」ボタン押下後にメモリとディスク総容量の間に表示する
+   */
+  const collectStatus = ref({ type: '', message: '' })
+
+  /** PC情報取得メッセージのフェードアウト中フラグ */
+  const isCollectStatusFading = ref(false)
+
+  /** PC情報取得メッセージのフェードアウトタイマー参照 */
+  let collectStatusTimer: ReturnType<typeof setTimeout> | null = null
+
+  /**
+   * PC情報取得ステータスメッセージを 3 秒後にフェードアウトして消去するタイマーを開始する
+   * 連続して「情報を取得」を押した場合は既存タイマーをキャンセルしてリセットする
+   */
+  function startCollectStatusFadeTimer() {
+    if (collectStatusTimer !== null) {
+      clearTimeout(collectStatusTimer)
+      collectStatusTimer = null
+    }
+    isCollectStatusFading.value = false
+    // 2.5 秒後にフェードアウト開始（CSS transition 0.5 秒と合わせて合計 3 秒で消える）
+    collectStatusTimer = setTimeout(() => {
+      isCollectStatusFading.value = true
+      collectStatusTimer = setTimeout(() => {
+        collectStatus.value = { type: '', message: '' }
+        isCollectStatusFading.value = false
+        collectStatusTimer = null
+      }, 500)
+    }, 2500)
+  }
+
   /** 送信ステータスメッセージ（type: 'success' | 'error' | 'loading' | ''） */
   const sendStatus = ref({ type: '', message: '送信ボタンを押してください' })
+
+  /**
+   * フェードアウト中フラグ
+   * true になると CSS の opacity: 0 トランジションが発動する
+   */
+  const isSendStatusFading = ref(false)
+
+  /**
+   * フェードアウトタイマーの参照
+   * 連続して保存ボタンを押した場合に前のタイマーをキャンセルするために保持する
+   */
+  let sendStatusTimer: ReturnType<typeof setTimeout> | null = null
+
+  /**
+   * 送信ステータスメッセージを 3 秒後にフェードアウトして消去するタイマーを開始する
+   *
+   * - 既存タイマーがある場合はキャンセルして新たに開始する（連続押下対応）
+   * - 2.5 秒後に fading フラグを true にして CSS フェードアウト（0.5 秒）を開始する
+   * - フェードアウト完了後にメッセージをリセットする
+   * - loading 表示中には呼び出さない（成功・エラー確定後のみ呼ぶ）
+   */
+  function startSendStatusFadeTimer() {
+    // 既存タイマーをキャンセルして二重起動を防ぐ
+    if (sendStatusTimer !== null) {
+      clearTimeout(sendStatusTimer)
+      sendStatusTimer = null
+    }
+    isSendStatusFading.value = false
+    // 2.5 秒後にフェードアウト開始（CSS transition 0.5 秒と合わせて合計 3 秒で消える）
+    sendStatusTimer = setTimeout(() => {
+      isSendStatusFading.value = true
+      // CSS フェードアウト完了（0.5 秒）後にメッセージをリセットする
+      sendStatusTimer = setTimeout(() => {
+        sendStatus.value = { type: '', message: '送信ボタンを押してください' }
+        isSendStatusFading.value = false
+        sendStatusTimer = null
+      }, 500)
+    }, 2500)
+  }
 
   /**
    * 新規登録確認モーダルの表示フラグ
    * true: モーダルを表示（エージェント番号未取得時に「新規登録」ボタン押下で true になる）
    */
   const showNewRegisterWarning = ref(false)
+
+  // -------------------------------------------------------
+  // WindowsUpdate 適用判定
+  // -------------------------------------------------------
+
+  /** 判定処理中フラグ（true の間はボタンを disabled にする） */
+  const isWinUpdateLoading = ref(false)
+
+  /** ボタン横に表示するステータスメッセージ（処理中 / 結果件数 / エラー） */
+  const winUpdateMessage = ref('')
+
+  /**
+   * 未適用更新の KB ID 一覧
+   * 未適用あり: ['KB5034441', ...] / 最新 or エラー: []
+   */
+  const winUpdateKbIds = ref < string[] > ([])
+
+  /**
+   * 未適用更新ポップアップの表示フラグ
+   * 未適用更新が 1 件以上ある場合のみ true になる
+   */
+  const isWinUpdatePopupVisible = ref(false)
+
+  /** ボタン横メッセージのフェードアウト中フラグ */
+  const isWinUpdateMessageFading = ref(false)
+
+  /**
+   * ボタン横メッセージのステータス種別
+   * アイコン img の src 切り替えに使用（絵文字によるstartsWith判定を廃止し画像化対応）
+   * 'ok' | 'warn' | 'error' | 'loading' | ''
+   */
+  const winUpdateMessageType = ref<'ok' | 'warn' | 'error' | 'loading' | ''>('')
+
+  /** ボタン横メッセージのフェードアウトタイマー参照（連続押下時のキャンセルに使用） */
+  let winUpdateMessageTimer: ReturnType<typeof setTimeout> | null = null
+
+  /**
+   * ボタン横の winUpdateMessage を 3 秒後にフェードアウトして消去するタイマーを開始する
+   * - 2.5 秒後に fading フラグを true にして CSS フェードアウト（0.5 秒）を開始する
+   * - フェードアウト完了後にメッセージをリセットする
+   * - ポップアップ（isWinUpdatePopupVisible）はタイマーの影響を受けず、手動で閉じるまで残る
+   */
+  function startWinUpdateMessageFadeTimer() {
+    if (winUpdateMessageTimer !== null) {
+      clearTimeout(winUpdateMessageTimer)
+      winUpdateMessageTimer = null
+    }
+    isWinUpdateMessageFading.value = false
+    // 2.5 秒後にフェードアウト開始（CSS transition 0.5 秒と合わせて合計 3 秒で消える）
+    winUpdateMessageTimer = setTimeout(() => {
+      isWinUpdateMessageFading.value = true
+      winUpdateMessageTimer = setTimeout(() => {
+        winUpdateMessage.value = ''
+        winUpdateMessageType.value = ''  // アイコン表示もリセット
+        isWinUpdateMessageFading.value = false
+        winUpdateMessageTimer = null
+      }, 500)
+    }, 2500)
+  }
+
+  /**
+   * WindowsUpdate 適用判定を実行する
+   *
+   * Windows Update Agent COM API（Microsoft.Update.Session）で
+   * Microsoft が公開済みの未適用更新プログラムを検索し、
+   * windowsUpdateProgram.txt に保存する。
+   * ネットワーク通信を伴うため最大 120 秒かかる場合がある。
+   */
+  async function runWindowsUpdateJudgment() {
+    // ボタン押下時: 既存フェードタイマーをキャンセルして「処理中です...」を即時表示する
+    if (winUpdateMessageTimer !== null) {
+      clearTimeout(winUpdateMessageTimer)
+      winUpdateMessageTimer = null
+    }
+    isWinUpdateMessageFading.value = false
+    isWinUpdateLoading.value = true
+    winUpdateMessage.value = '処理中です...'
+    winUpdateKbIds.value = []
+    isWinUpdatePopupVisible.value = false
+    try {
+      const result = await invoke < string > ('collect_windows_update')
+
+      // PowerShell の出力から件数を抽出して件数に応じたメッセージを設定する
+      const countMatch = result.match(/Available update\(s\) from Microsoft:\s*(\d+)/)
+      if (countMatch) {
+        const count = parseInt(countMatch[1], 10)
+        if (count === 0) {
+          // 未適用なし: 成功アイコン + メッセージを表示（ポップアップなし）→ 3 秒後フェードアウト
+          // アイコンは絵文字でなく imageフォルダの icon-success.svg を使用（規約準拠）
+          winUpdateMessageType.value = 'ok'
+          winUpdateMessage.value = '最新の状態です（未適用の更新はありません）'
+          winUpdateKbIds.value = []
+          startWinUpdateMessageFadeTimer()
+        } else {
+          // テーブルの KB 列（行頭に並ぶ 4〜8 桁の数値）を抽出して "KBXXXXXXX" 形式に変換する
+          // 出力例: "5034441   Critical  2024-01-15  ..." → "KB5034441"
+          winUpdateKbIds.value = [...result.matchAll(/^\s*(\d{4,8})\b/gm)]
+            .map(m => `KB${m[1]}`)
+          // 警告アイコンは imageフォルダの icon-warning.svg を使用（規約準拠）
+          winUpdateMessageType.value = 'warn'
+          winUpdateMessage.value = `${count} 件の未適用更新があります`
+          // 未適用あり: 画面中央にポップアップを表示 + ボタン横メッセージは 3 秒後フェードアウト
+          isWinUpdatePopupVisible.value = true
+          startWinUpdateMessageFadeTimer()
+        }
+      } else {
+        winUpdateMessageType.value = 'ok'
+        winUpdateMessage.value = '取得完了'
+        winUpdateKbIds.value = []
+        startWinUpdateMessageFadeTimer()
+      }
+    } catch (e: unknown) {
+      // エラーアイコンは imageフォルダの icon-error.svg を使用（規約準拠）
+      winUpdateMessageType.value = 'error'
+      const errorMessage = e instanceof Error ? e.message : String(e)
+      winUpdateMessage.value = `エラー: ${errorMessage}`
+      winUpdateKbIds.value = []
+      startWinUpdateMessageFadeTimer()
+    } finally {
+      isWinUpdateLoading.value = false
+    }
+  }
 
   /**
    * 「個人所有のPCではありませんか？」チェックボックスの状態
@@ -333,15 +612,24 @@
    * 成功時は apiUrl に設定されたURLをセット、失敗時はデフォルト値を使用する。
    * application.yml が見つからない場合も Rust 側でデフォルト値を返す。
    */
+  /**
+   * フォールバック API URL
+   * application.yml の読み込みに失敗した場合に使用する。
+   * .env の VITE_API_BASE_URL で設定する（env変数ハードコード禁止規約に従い定数化）。
+   */
+  // ?? を先に評価してから string にアサーションする（as string ?? '' だと ?? が dead code になるため）
+  const fallbackApiUrl = (import.meta.env.VITE_API_BASE_URL ?? '') as string
+
   async function loadApiConfig() {
     try {
-      const config = await invoke<ApiConfig>('load_config')
-      apiUrl.value = config.base_url
-      console.info('application.yml からAPIのURLを読み込みました:', config.base_url)
+      const config = await invoke < ApiConfig > ('load_config')
+      // base_url が undefined になる場合（Rust の serde rename ずれ等）に備えて .env のフォールバックを使用する
+      apiUrl.value = config.base_url || fallbackApiUrl
+      console.info('application.yml からAPIのURLを読み込みました:', apiUrl.value)
     } catch (e) {
-      // 読み込みに失敗した場合はデフォルト値を使用する
-      apiUrl.value = 'http://localhost:8080/api/v1'
-      console.warn('application.yml の読み込みに失敗しました。デフォルト値を使用します:', e)
+      // 読み込みに失敗した場合は .env の VITE_API_BASE_URL を使用する
+      apiUrl.value = fallbackApiUrl
+      console.warn('application.yml の読み込みに失敗しました。フォールバック URL を使用します:', e)
     }
   }
 
@@ -349,13 +637,31 @@
    * PC 情報を収集する
    * Rust の collect_pc_info コマンドを invoke() で呼び出す。
    * 成功時は pcInfo に結果をセット、失敗時はコンソールにエラーを出力する。
+   *
+   * 収集完了後にバックエンドへ取得区分（購入/レンタル）を問い合わせる。
+   * これにより「情報を取得」ボタン1回で設定タブの購入/レンタル区分も最新化される。
    */
   async function collectInfo() {
+    // 連続押下時は前のフェードタイマーをキャンセルしてメッセージを即時リセットする
+    if (collectStatusTimer !== null) {
+      clearTimeout(collectStatusTimer)
+      collectStatusTimer = null
+    }
+    isCollectStatusFading.value = false
     try {
       pcInfo.value = await invoke < PcInfo > ('collect_pc_info')
+      // 取得成功メッセージを設定して 3 秒後フェードアウトタイマーを開始する
+      // アイコンは imageフォルダの icon-success.svg を template 側で表示（規約準拠）
+      collectStatus.value = { type: 'success', message: '取得しました' }
+      startCollectStatusFadeTimer()
     } catch (e) {
       console.error('情報収集エラー:', e)
+      // アイコンは imageフォルダの icon-error.svg を template 側で表示（規約準拠）
+      collectStatus.value = { type: 'error', message: '取得に失敗しました' }
+      startCollectStatusFadeTimer()
     }
+    // PC情報収集後にバックエンドから取得区分を取得する（ホスト名が確定してから実行）
+    await fetchAcquisitionType()
   }
 
   /**
@@ -404,9 +710,9 @@
     if (!agentNumber.value && !pcInfo.value?.hostname) return
     try {
       const acqType = await invoke < string | null > ('fetch_asset_acquisition_type', {
-        apiUrl:      apiUrl.value,
+        apiUrl: apiUrl.value,
         agentNumber: agentNumber.value ?? '',       // 未取得時は空文字（バックエンド側でスキップ）
-        hostname:    pcInfo.value?.hostname ?? '',  // フォールバック検索用ホスト名
+        hostname: pcInfo.value?.hostname ?? '',  // フォールバック検索用ホスト名
       })
       if (acqType) {
         // バックエンドに設定済み → 読み取り専用にして表示する
@@ -442,6 +748,12 @@
   async function sendReport() {
     if (!pcInfo.value) return
     try {
+      // 送信開始時は既存のフェードタイマーをキャンセルして loading を即時表示する
+      if (sendStatusTimer !== null) {
+        clearTimeout(sendStatusTimer)
+        sendStatusTimer = null
+      }
+      isSendStatusFading.value = false
       sendStatus.value = { type: 'loading', message: '送信中...' }
 
       // 取得区分の送信判定:
@@ -476,9 +788,15 @@
         console.info('取得区分を送信後にバックエンドから再取得しました')
       }
 
-      sendStatus.value = { type: 'success', message: '✅ 送信成功しました' }
-    } catch (e: any) {
-      sendStatus.value = { type: 'error', message: `❌ ${e}` }
+      // アイコンは imageフォルダの icon-success.svg を template 側で表示（規約準拠）
+      sendStatus.value = { type: 'success', message: '送信成功しました' }
+      startSendStatusFadeTimer() // 3 秒後にフェードアウトして消去する
+    } catch (e: unknown) {
+      // unknown 型で受けて型ガードで安全にメッセージを取り出す（any型禁止規約に従う）
+      // アイコンは imageフォルダの icon-error.svg を template 側で表示（規約準拠）
+      const errorMessage = e instanceof Error ? e.message : String(e)
+      sendStatus.value = { type: 'error', message: errorMessage }
+      startSendStatusFadeTimer() // 3 秒後にフェードアウトして消去する
     }
   }
 
@@ -526,7 +844,7 @@
   /**
    * 設定値を localStorage に保存し、続けて手動送信を実行する
    * アプリ再起動後も設定が引き継がれるよう永続化する。
-   * 保存後は送信タブへ切り替え、手動送信の結果を表示する。
+   * 画面遷移は行わず、送信結果は設定タブ内の sendStatus で表示する。
    *
    * ※ API URL は application.yml で管理するため localStorage には保存しない
    */
@@ -539,8 +857,7 @@
     // （次回バックエンドが起動していない場合でも選択値を復元するため）
     localStorage.setItem('acquisitionType', settings.value.acquisitionType)
 
-    // 送信タブへ切り替えて手動送信を実行（結果は送信タブの sendStatus で確認）
-    currentView.value = 'send'
+    // 画面遷移せずにそのまま手動送信を実行する（結果は設定タブ内の sendStatus で確認）
     await sendReport()
   }
 
@@ -548,11 +865,14 @@
    * アプリ起動時の初期化処理
    *
    * 1. application.yml から API URL を読み込む（最初に実行。後続処理で使用するため）
-   * 2. PC情報を収集する（ホスト名はエージェント登録に必要なため先に実行）
+   * 2. PC情報を収集する（ホスト名取得のため最初に実行）
+   *    ※ collectInfo() 内で fetchAcquisitionType() が呼ばれるが、
+   *      この時点では agentNumber = null のためホスト名のみで検索する。
    * 3. ローカルファイルからエージェント番号を読み込む
    *    - ファイルあり: agentNumber にセットして使用する
    *    - ファイルなし: 自動登録は行わない。設定タブの「新規登録」から手動で登録する。
-   * 4. エージェント番号を使ってバックエンドから取得区分（購入/レンタル）を取得する
+   * 4. エージェント番号が確定した後、取得区分を再取得する
+   *    エージェント番号＋ホスト名の両方で検索し、正確な値を取得する。
    *    - 取得できた場合: 設定欄を読み取り専用にする
    *    - 取得できなかった場合（エージェント番号未取得・資産未紐付け等）: 設定欄を活性化
    */
@@ -560,7 +880,7 @@
     // ① application.yml から API URL を読み込む（後続の全 API 呼び出しで使用するため最初に実行）
     await loadApiConfig()
 
-    // ② まず PC 情報を収集する（ホスト名取得のため最初に実行）
+    // ② PC 情報を収集する（内部で fetchAcquisitionType() も呼ぶ。ただし agentNumber 未確定のためホスト名のみで検索）
     await collectInfo()
 
     // ③ ローカルファイルからエージェント番号を読み込む
@@ -583,9 +903,9 @@
       console.warn('エージェント番号の読み込みに失敗しました:', e)
     }
 
-    // ④ バックエンドから取得区分（購入/レンタル）を取得する（②③の後に実行）
-    //    （エージェント番号取得処理と並行して実行可能だが、
-    //     ホスト名が確定した後に実行する必要があるため collectInfo() の後に実行）
+    // ④ エージェント番号確定後に取得区分を再取得する
+    //    ②の fetchAcquisitionType() はホスト名のみで検索したため、
+    //    エージェント番号が揃ったここで再取得して正確な値を反映する。
     await fetchAcquisitionType()
   })
 </script>
@@ -613,6 +933,16 @@
     justify-content: space-between;
     align-items: center;
     font-weight: 600;
+  }
+
+  /* ヘッダータイトル横のアイコン画像（imageフォルダより読み込み） */
+  .header-icon {
+    width: 20px;
+    height: 20px;
+    vertical-align: middle;
+    margin-right: 6px;
+    /* 白色テキストに合わせてアイコンを白く反転する */
+    filter: brightness(0) invert(1);
   }
 
   /* バージョン表示（小・半透明） */
@@ -666,6 +996,33 @@
   .info-label {
     color: #6b7280;
     font-weight: 500;
+  }
+
+  /* PC情報タブ: 取得完了トースト（画面中央に重ねて表示） */
+  .info-status-overlay {
+    position: fixed;
+    /* 画面基準で配置（スクロール影響なし） */
+    top: 50%;
+    /* 垂直方向: 画面中央（メモリ〜ディスク項目付近） */
+    left: 50%;
+    /* 水平方向: 画面中央 */
+    transform: translate(-50%, -50%);
+    z-index: 200;
+    /* モーダルより手前に表示 */
+    pointer-events: none;
+    /* メッセージ背後のクリックをブロックしない */
+  }
+
+  /* オーバーレイ内の status-msg: コンパクトかつ影付きで浮いて見せる */
+  .info-status-overlay .status-msg {
+    margin-bottom: 0;
+    padding: 10px 28px;
+    font-size: 14px;
+    font-weight: 600;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+    /* 浮き上がって見える影 */
+    white-space: nowrap;
+    /* 改行させない */
   }
 
   /* ==============================
@@ -763,26 +1120,187 @@
     border-radius: 8px;
     margin-bottom: 16px;
     font-size: 14px;
+    /* フェードアウトアニメーション用トランジション（fading クラス付与時に opacity: 0 へ遷移） */
+    opacity: 1;
+    transition: opacity 0.5s ease;
+    display: flex;
+    align-items: center;
+    gap: 6px;
   }
 
+  /* ステータスメッセージ内のアイコン画像（imageフォルダの icon-success.svg / icon-error.svg） */
+  .status-icon {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+  }
+
+  /* フェードアウト中（3秒経過後に JS が付与） */
+  .status-msg.fading {
+    opacity: 0;
+  }
+
+  /* 緑: 送信成功 */
   .status-msg.success {
     background: #d1fae5;
     color: #065f46;
   }
 
-  /* 緑: 送信成功 */
+  /* 赤: エラー */
   .status-msg.error {
     background: #fee2e2;
     color: #dc2626;
   }
 
-  /* 赤: エラー */
+  /* 紫: 送信中 */
   .status-msg.loading {
     background: #ede9fe;
     color: #5b21b6;
   }
 
-  /* 紫: 送信中 */
+  /* ==============================
+   WindowsUpdate 適用判定
+   ============================== */
+
+  /* セクション全体：上に区切り線を入れて視覚的に分離する */
+  .win-update-section {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid #e5e7eb;
+  }
+
+  /* ボタンとステータスメッセージを横並びにするコンテナ */
+  .win-update-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    /* 画面が狭い場合は折り返す */
+  }
+
+  /* 適用判定ボタン（btn-primary の 100% 幅を上書きしてコンパクトにする） */
+  .btn-win-update {
+    width: auto;
+    white-space: nowrap;
+    padding: 10px 20px;
+  }
+
+  /* ボタン横のステータスメッセージ共通スタイル */
+  .win-update-status {
+    font-size: 13px;
+    font-weight: 600;
+    /* フェードアウトアニメーション（fading クラス付与時に opacity: 0 へ遷移） */
+    opacity: 1;
+    transition: opacity 0.5s ease;
+  }
+
+  /* フェードアウト中 */
+  .win-update-status.fading {
+    opacity: 0;
+  }
+
+  /* 処理中（紫） */
+  .win-update-status--loading {
+    color: #5b21b6;
+  }
+
+  /* 最新状態（緑） */
+  .win-update-status--ok {
+    color: #065f46;
+  }
+
+  /* 未適用あり（オレンジ） */
+  .win-update-status--warn {
+    color: #92400e;
+  }
+
+  /* エラー（赤） */
+  .win-update-status--error {
+    color: #dc2626;
+  }
+
+  /* ==============================
+   WindowsUpdate 未適用一覧 ポップアップ
+   ============================== */
+
+  /* ポップアップ内コンテンツ（modal-content を上書き） */
+  .win-update-popup {
+    width: 340px;
+  }
+
+  /* ヘッダー行：タイトルと閉じるボタンを横並び */
+  .win-update-popup-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+
+  .win-update-popup-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: #92400e;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* ポップアップタイトル横のアイコン画像 */
+  .popup-title-icon {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+  }
+
+  /* 閉じるボタン（×） */
+  .win-update-popup-close {
+    background: none;
+    border: none;
+    font-size: 18px;
+    cursor: pointer;
+    color: #6b7280;
+    padding: 0 4px;
+    line-height: 1;
+  }
+
+  .win-update-popup-close:hover {
+    color: #111827;
+  }
+
+  /* 件数メッセージ */
+  .win-update-popup-count {
+    font-size: 13px;
+    font-weight: 600;
+    color: #92400e;
+    margin-bottom: 10px;
+  }
+
+  /* KB ID リスト */
+  .win-update-popup-list {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .win-update-popup-item {
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 13px;
+    background: #fff7ed;
+    border: 1px solid #fed7aa;
+    border-radius: 6px;
+    padding: 4px 10px;
+    color: #7c2d12;
+  }
+
+  /* 注記テキスト */
+  .win-update-popup-note {
+    font-size: 11px;
+    color: #6b7280;
+    margin: 0;
+  }
 
   /* 新規登録ボタン（オレンジ系でアクション意図を強調） */
   .btn-register {
@@ -833,9 +1351,10 @@
     align-items: flex-start;
   }
 
-  /* 警告アイコン */
+  /* 警告アイコン画像（imageフォルダの icon-warning.svg を img 要素で表示） */
   .modal-warning-icon {
-    font-size: 18px;
+    width: 18px;
+    height: 18px;
     flex-shrink: 0;
     margin-top: 1px;
   }
@@ -898,6 +1417,17 @@
     border-radius: 8px;
     font-size: 14px;
     margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* 警告アラート内のインラインアイコン画像 */
+  .inline-icon {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    vertical-align: middle;
   }
 
   /* ==============================
@@ -921,6 +1451,23 @@
     font-size: 13px;
     color: #6b7280;
     transition: color 0.15s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+  }
+
+  /* タブボタン内のアイコン画像（imageフォルダより読み込み） */
+  .nav-tab-icon {
+    width: 20px;
+    height: 20px;
+    /* SVG の stroke="currentColor" でボタンのテキスト色を継承させる */
+    filter: invert(44%) sepia(8%) saturate(479%) hue-rotate(182deg) brightness(95%) contrast(90%);
+  }
+
+  /* アクティブタブのアイコンをインジゴ色に合わせる */
+  .bottom-nav button.active .nav-tab-icon {
+    filter: invert(38%) sepia(62%) saturate(648%) hue-rotate(205deg) brightness(97%) contrast(101%);
   }
 
   /* アクティブなタブ: インジゴ色・上部ボーダー */

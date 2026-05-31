@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- icon-active.svg: Green filled circle (in-use / active status KPI card) -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18">
+  <circle cx="12" cy="12" r="9" fill="#22c55e"/>
+</svg>

@@ -3,7 +3,8 @@
     <!-- ヘッダー -->
     <header class="header">
       <div class="header-left">
-        <span class="header-logo">🖥️</span>
+        <!-- imageフォルダのアイコン画像を読み込む（規約: アイコンは画像化してimageフォルダに格納） -->
+        <img src="@/image/icon-pc.svg" class="header-logo" alt="PC管理システム" />
         <h1 class="header-title">PC管理システム</h1>
       </div>
       <div class="header-right">
@@ -24,7 +25,8 @@
             :class="{ active: isActive(item.to) }"
             @click="router.push(item.to)"
           >
-            <span class="nav-icon">{{ item.icon }}</span>
+            <!-- imageフォルダの画像ファイルをアイコンとして読み込む（規約準拠） -->
+            <img :src="item.icon" class="nav-icon" :alt="item.label" />
             {{ item.label }}
           </li>
         </ul>
@@ -43,6 +45,15 @@ import { computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
+// ナビゲーションアイコン画像（imageフォルダより読み込み。規約: アイコンは画像化してimageフォルダに格納）
+import iconDashboard from '@/image/icon-dashboard.svg'
+import iconPc        from '@/image/icon-pc.svg'
+import iconEmployee  from '@/image/icon-employee.svg'
+import iconLoan      from '@/image/icon-loan.svg'
+import iconRental    from '@/image/icon-rental.svg'
+import iconSoftware  from '@/image/icon-software.svg'
+import iconSettings  from '@/image/icon-settings.svg'
+
 const authStore = useAuthStore()
 const router = useRouter()
 const route = useRoute()
@@ -56,17 +67,18 @@ const roleLabel = computed(() => {
   }
 })
 
+// アイコンは絵文字でなくimageフォルダの画像ファイルパスを格納する（規約準拠）
 const navItems = computed(() => {
   const items = [
-    { to: '/dashboard',  icon: '📊', label: 'ダッシュボード' },
-    { to: '/assets',     icon: '💻', label: 'PC一覧' },
-    { to: '/employees',  icon: '👥', label: '社員管理' },
-    { to: '/loans',      icon: '📋', label: '貸出管理' },
-    { to: '/rentals',    icon: '📦', label: 'レンタル管理' },
-    { to: '/software',   icon: '🔑', label: 'ソフトウェア' },
+    { to: '/dashboard',  icon: iconDashboard, label: 'ダッシュボード' },
+    { to: '/assets',     icon: iconPc,        label: 'PC一覧' },
+    { to: '/employees',  icon: iconEmployee,  label: '社員管理' },
+    { to: '/loans',      icon: iconLoan,      label: '貸出管理' },
+    { to: '/rentals',    icon: iconRental,    label: 'レンタル管理' },
+    { to: '/software',   icon: iconSoftware,  label: 'ソフトウェア' },
   ]
   if (authStore.isAdmin) {
-    items.push({ to: '/users', icon: '⚙️', label: 'ユーザー管理' })
+    items.push({ to: '/users', icon: iconSettings, label: 'ユーザー管理' })
   }
   return items
 })
@@ -104,7 +116,7 @@ async function handleLogout() {
   z-index: 100;
 }
 .header-left { display: flex; align-items: center; gap: 10px; }
-.header-logo  { font-size: 22px; }
+.header-logo  { width: 26px; height: 26px; filter: brightness(0) invert(1); }
 .header-title { font-size: 17px; font-weight: 700; }
 .header-right { display: flex; align-items: center; gap: 12px; }
 .user-info    { font-size: 14px; }
@@ -155,7 +167,7 @@ async function handleLogout() {
   color: #6366f1;
   font-weight: 600;
 }
-.nav-icon { font-size: 16px; }
+.nav-icon { width: 18px; height: 18px; flex-shrink: 0; }
 
 /* ---- Main ---- */
 .main-content {

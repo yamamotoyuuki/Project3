@@ -2,7 +2,10 @@
   <AppLayout>
     <div class="page">
       <div class="page-header">
-        <h2 class="page-title">📋 貸出管理</h2>
+        <h2 class="page-title">
+          <img src="@/image/icon-loan.svg" class="page-title-icon" alt="貸出管理" />
+          貸出管理
+        </h2>
         <button v-if="authStore.isItStaff" class="btn btn-primary" @click="openCreate">
           ＋ 貸出登録
         </button>
@@ -17,7 +20,9 @@
           <option value="false">貸出中</option>
           <option value="true">返却済</option>
         </select>
-        <button class="btn btn-secondary" @click="doSearch">🔍 検索</button>
+        <button class="btn btn-secondary" @click="doSearch">
+          <img src="@/image/icon-search.svg" class="btn-icon-img" alt="検索" /> 検索
+        </button>
         <button class="btn btn-ghost" @click="resetSearch">リセット</button>
       </div>
 

@@ -16,15 +16,16 @@
           </div>
           <div class="header-actions">
             <StatusBadge :status="asset.status" />
+            <!-- imageフォルダのアイコン画像を読み込む（規約準拠） -->
             <button v-if="authStore.isItStaff" class="btn btn-primary" @click="openEdit">
-              ✏️ 編集
+              <img src="@/image/icon-edit.svg" class="btn-icon-img" alt="編集" /> 編集
             </button>
             <button
               v-if="authStore.isAdmin"
               class="btn btn-danger"
               @click="confirmDelete"
             >
-              🗑 削除
+              <img src="@/image/icon-delete.svg" class="btn-icon-img" alt="削除" /> 削除
             </button>
           </div>
         </div>

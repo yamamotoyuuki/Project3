@@ -17,7 +17,8 @@
 
       <!-- ロゴ・タイトル領域 -->
       <div class="login-header">
-        <div class="logo">🖥️</div>
+        <!-- imageフォルダのアイコン画像を読み込む（規約: アイコンは画像化してimageフォルダに格納） -->
+        <img src="@/image/icon-pc.svg" class="logo" alt="PC管理システム" />
         <h1 class="title">PC管理システム</h1>
         <p class="subtitle">ログインしてください</p>
       </div>
@@ -169,9 +170,10 @@ async function handleLogin() {
   margin-bottom: 32px;
 }
 
-/* 絵文字アイコン */
+/* ロゴアイコン画像（imageフォルダの icon-pc.svg を使用） */
 .logo {
-  font-size: 48px;
+  width: 48px;
+  height: 48px;
   margin-bottom: 12px;
 }
 

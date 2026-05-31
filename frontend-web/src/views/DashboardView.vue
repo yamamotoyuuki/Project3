@@ -1,40 +1,45 @@
 <template>
   <AppLayout>
     <div class="page">
-      <h2 class="page-title">📊 ダッシュボード</h2>
+      <!-- ページタイトル（imageフォルダのアイコン画像を使用。規約準拠） -->
+      <h2 class="page-title">
+        <img src="@/image/icon-dashboard.svg" class="page-title-icon" alt="ダッシュボード" />
+        ダッシュボード
+      </h2>
 
       <!-- KPI カード -->
       <div class="kpi-grid">
         <div class="kpi-card">
-          <div class="kpi-icon">💻</div>
+          <!-- KPIアイコン（imageフォルダより読み込み） -->
+          <div class="kpi-icon"><img src="@/image/icon-pc.svg" alt="総PC台数" /></div>
           <div class="kpi-body">
             <div class="kpi-label">総PC台数</div>
             <div class="kpi-value">{{ statsLoading ? '…' : stats?.totalPcCount ?? '—' }}</div>
           </div>
         </div>
         <div class="kpi-card green">
-          <div class="kpi-icon">🟢</div>
+          <div class="kpi-icon"><img src="@/image/icon-active.svg" alt="使用中" /></div>
           <div class="kpi-body">
             <div class="kpi-label">使用中</div>
             <div class="kpi-value">{{ statsLoading ? '…' : stats?.inUsePcCount ?? '—' }}</div>
           </div>
         </div>
         <div class="kpi-card blue">
-          <div class="kpi-icon">📦</div>
+          <div class="kpi-icon"><img src="@/image/icon-rental.svg" alt="保管中" /></div>
           <div class="kpi-body">
             <div class="kpi-label">保管中</div>
             <div class="kpi-value">{{ statsLoading ? '…' : stats?.inStoragePcCount ?? '—' }}</div>
           </div>
         </div>
         <div class="kpi-card orange">
-          <div class="kpi-icon">📋</div>
+          <div class="kpi-icon"><img src="@/image/icon-loan.svg" alt="貸出中PC" /></div>
           <div class="kpi-body">
             <div class="kpi-label">貸出中PC</div>
             <div class="kpi-value">{{ statsLoading ? '…' : stats?.activeLoansCount ?? '—' }}</div>
           </div>
         </div>
         <div class="kpi-card warning">
-          <div class="kpi-icon">⚠️</div>
+          <div class="kpi-icon"><img src="@/image/icon-warning.svg" alt="レンタル期限切れ間近" /></div>
           <div class="kpi-body">
             <div class="kpi-label">レンタル期限切れ間近</div>
             <div class="kpi-value">{{ statsLoading ? '…' : stats?.nearExpiryRentalsCount ?? '—' }}</div>
@@ -46,36 +51,37 @@
       <div class="quick-links">
         <h3 class="section-title">クイックアクセス</h3>
         <div class="link-grid">
+          <!-- クイックリンクアイコン（imageフォルダより読み込み） -->
           <div class="link-card" @click="router.push('/assets')">
-            <span class="link-icon">💻</span>
+            <img src="@/image/icon-pc.svg" class="link-icon" alt="PC一覧" />
             <div>
               <div class="link-title">PC一覧</div>
               <div class="link-desc">資産の確認・登録・編集</div>
             </div>
           </div>
           <div class="link-card" @click="router.push('/employees')">
-            <span class="link-icon">👥</span>
+            <img src="@/image/icon-employee.svg" class="link-icon" alt="社員管理" />
             <div>
               <div class="link-title">社員管理</div>
               <div class="link-desc">社員情報の管理</div>
             </div>
           </div>
           <div class="link-card" @click="router.push('/loans')">
-            <span class="link-icon">📋</span>
+            <img src="@/image/icon-loan.svg" class="link-icon" alt="貸出管理" />
             <div>
               <div class="link-title">貸出管理</div>
               <div class="link-desc">貸出・返却の登録と確認</div>
             </div>
           </div>
           <div class="link-card" @click="router.push('/rentals')">
-            <span class="link-icon">📦</span>
+            <img src="@/image/icon-rental.svg" class="link-icon" alt="レンタル管理" />
             <div>
               <div class="link-title">レンタル管理</div>
               <div class="link-desc">契約・期限アラート確認</div>
             </div>
           </div>
           <div class="link-card" @click="router.push('/software')">
-            <span class="link-icon">🔑</span>
+            <img src="@/image/icon-software.svg" class="link-icon" alt="ソフトウェア" />
             <div>
               <div class="link-title">ソフトウェア</div>
               <div class="link-desc">ライセンス管理・超過確認</div>

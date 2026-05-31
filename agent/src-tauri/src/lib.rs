@@ -21,6 +21,16 @@ use serde::{Deserialize, Serialize};
 use sysinfo::{Disks, System};
 
 // =====================================================
+// 定数
+// =====================================================
+
+/// デフォルト API ベース URL
+/// application.yml が存在しない・読み込めない場合のフォールバック値。
+/// 実際の接続先は application.yml の api.base-url で上書きされる。
+/// 環境変数 API_BASE_URL が設定されている場合はそちらを優先する。
+const DEFAULT_API_BASE_URL: &str = "http://localhost:8080/api/v1";
+
+// =====================================================
 // 設定ファイル構造体（application.yml のマッピング）
 // =====================================================
 
@@ -48,7 +58,14 @@ struct AgentSection {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct ApiSection {
     /// バックエンドAPIのベースURL（例: "http://localhost:8080/api/v1"）
-    #[serde(rename = "base-url")]
+    ///
+    /// - deserialize: YAML キー "base-url"（ハイフン区切り）で読み込む
+    /// - serialize  : Rust フィールド名 "base_url"（アンダースコア）でJSON出力する
+    ///   → Tauri IPC レスポンスが { "base_url": "..." } となり、
+    ///     TypeScript 側の config.base_url で正しく参照できる。
+    ///   ※ rename = "base-url" だと serialize にも適用されて
+    ///     レスポンスキーが "base-url" になり TypeScript で undefined になる不具合あり。
+    #[serde(rename(deserialize = "base-url"))]
     pub base_url: String,
 }
 
@@ -189,9 +206,12 @@ fn load_config(app: tauri::AppHandle) -> Result<ApiSection, String> {
     }
 
     // ---- ③ いずれも見つからない場合はデフォルト値を返す ----
-    println!("[CONFIG] application.yml が見つかりませんでした。デフォルト値を使用します。");
+    // 環境変数 API_BASE_URL が設定されていればそちらを優先し、なければ定数を使用する
+    let fallback_url = std::env::var("API_BASE_URL")
+        .unwrap_or_else(|_| DEFAULT_API_BASE_URL.to_string());
+    println!("[CONFIG] application.yml が見つかりませんでした。フォールバック URL を使用します: {}", fallback_url);
     Ok(ApiSection {
-        base_url: "http://localhost:8080/api/v1".to_string(),
+        base_url: fallback_url,
     })
 }
 
@@ -727,6 +747,142 @@ fn round1(value: f64) -> f64 {
 }
 
 // =====================================================
+// Tauri コマンド: WindowsUpdate 適用判定
+// =====================================================
+
+/// Microsoft が公開済みで未適用の Windows Update プログラム情報を取得してファイルに保存する。
+///
+/// Windows 専用。Windows Update Agent COM API（Microsoft.Update.Session）を
+/// PowerShell 経由で呼び出し、まだインストールされていない更新プログラムを検索する。
+/// 取得結果は `.agent_id` と同じディレクトリ（app_local_data_dir）に
+/// `windowsUpdateProgram.txt` として保存する。
+///
+/// # Arguments
+/// * `app` - Tauri アプリハンドル（保存先ディレクトリの解決に使用）
+///
+/// # Returns
+/// 成功時は取得した情報の文字列、失敗時は `Err(エラーメッセージ)` を返す。
+#[tauri::command]
+async fn collect_windows_update(app: tauri::AppHandle) -> Result<String, String> {
+    // プラットフォーム別実装に委譲する
+    collect_windows_update_inner(app).await
+}
+
+/// Windows 向け実装：Windows Update Agent COM API で Microsoft 公開済み未適用更新を取得する
+///
+/// Windows Update Agent（Microsoft.Update.Session）を PowerShell 経由で呼び出し、
+/// Microsoft のサーバーから「まだインストールされていない更新プログラム」を検索する。
+/// Get-HotFix とは異なり、PC にインストール済みの更新ではなく、
+/// Microsoft が公開中で適用が必要な更新プログラムの一覧を取得する。
+///
+/// 検索には Windows Update サービスとネットワーク接続が必要。
+/// 検索完了まで時間がかかるため、最大 120 秒のタイムアウトを設定する。
+#[cfg(target_os = "windows")]
+async fn collect_windows_update_inner(app: tauri::AppHandle) -> Result<String, String> {
+    use tauri::Manager;
+    use tokio::time::{timeout, Duration};
+
+    // PowerShell スクリプト:
+    //   Microsoft.Update.Session COM オブジェクトを使用して Windows Update Agent API を呼び出す。
+    //   IsInstalled=0: まだインストールされていない更新プログラムを検索する条件。
+    //   Type='Software': ドライバー更新を除いたソフトウェア更新のみを対象とする。
+    //   取得したカラム:
+    //     KB        - KB 番号（例: 5034441）
+    //     Severity  - 重要度（Critical / Important / Moderate / Low / N/A）
+    //     Published - 更新プログラムの公開日
+    //     Title     - 更新プログラムのタイトル
+    let ps_script = r#"
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
+try {
+    $Session  = New-Object -ComObject Microsoft.Update.Session
+    $Searcher = $Session.CreateUpdateSearcher()
+    $Result   = $Searcher.Search('IsInstalled=0 and Type=''Software''')
+    $Count    = $Result.Updates.Count
+    "Available update(s) from Microsoft: $Count"
+    ""
+    if ($Count -gt 0) {
+        $Result.Updates |
+          Select-Object `
+            @{N='KB'       ; E={ ($_.KBArticleIDs -join ',') }}, `
+            @{N='Severity' ; E={ if ($_.MsrcSeverity) { $_.MsrcSeverity } else { 'N/A' } }}, `
+            @{N='Published'; E={ $_.LastDeploymentChangeTime.ToString('yyyy-MM-dd') }}, `
+            Title |
+          Sort-Object Published -Descending |
+          Format-Table -AutoSize |
+          Out-String -Width 400
+    } else {
+        'No pending updates. This PC is up to date.'
+    }
+} catch {
+    Write-Error "Windows Update search failed: $_"
+    exit 1
+}
+"#;
+
+    // Windows Update 検索はネットワーク通信を伴うため最大 120 秒のタイムアウトを設定する
+    let output = timeout(
+        Duration::from_secs(120),
+        tokio::process::Command::new("powershell")
+            .args(["-NoProfile", "-NonInteractive", "-Command", ps_script])
+            .output(),
+    )
+    .await
+    .map_err(|_| "Windows Update 検索タイムアウト（最大 120 秒）".to_string())?
+    .map_err(|e| format!("PowerShell 起動エラー: {}", e))?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+
+    // stdout が空かつ終了コード異常の場合のみエラーとして扱う
+    if !output.status.success() && stdout.trim().is_empty() {
+        return Err(format!("Windows Update 検索エラー: {}", stderr.trim()));
+    }
+
+    // 取得日時・情報源ヘッダーを付加して保存用テキストを組み立てる
+    let collected_at = chrono::Local::now()
+        .format("%Y-%m-%d %H:%M:%S")
+        .to_string();
+    let file_content = format!(
+        "# Latest Available Windows Update Programs (Test Feature)\n\
+         # Collected At : {}\n\
+         # Source       : Windows Update Agent API (Microsoft.Update.Session COM)\n\
+         # Target       : Updates NOT yet installed (IsInstalled=0, Type=Software)\n\
+         # Columns      : KB, Severity, Published, Title\n\
+         # Sort Order   : Published DESC (newest first)\n\
+         # Note         : This file lists updates published by Microsoft that have\n\
+         #                NOT been applied to this PC yet.\n\
+         #\n\
+         {}",
+        collected_at, stdout
+    );
+
+    // .agent_id と同じ保存先ディレクトリ (app_local_data_dir) を取得する
+    // Windows: %LOCALAPPDATA%\{app-name}\
+    let data_dir = app
+        .path()
+        .app_local_data_dir()
+        .map_err(|e| format!("データディレクトリ取得エラー: {}", e))?;
+
+    std::fs::create_dir_all(&data_dir)
+        .map_err(|e| format!("ディレクトリ作成エラー: {}", e))?;
+
+    // windowsUpdateProgram.txt に書き込む（既存ファイルは上書き）
+    let file_path = data_dir.join("windowsUpdateProgram.txt");
+    std::fs::write(&file_path, file_content.as_bytes())
+        .map_err(|e| format!("ファイル書き込みエラー: {}", e))?;
+
+    println!("[WIN_UPDATE] 保存完了: {:?}", file_path);
+    Ok(stdout)
+}
+
+/// Windows 以外向けスタブ実装（コンパイルエラー回避用）
+#[cfg(not(target_os = "windows"))]
+async fn collect_windows_update_inner(_app: tauri::AppHandle) -> Result<String, String> {
+    Err("Windows 専用機能です。Windows 以外の OS では動作しません。".to_string())
+}
+
+// =====================================================
 // アプリケーション起動
 // =====================================================
 
@@ -736,21 +892,94 @@ fn round1(value: f64) -> f64 {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
-        // ---- デバッグ設定 ----
-        // debug_assertions が true のビルド（`npm run tauri dev` = デバッグビルド）時のみ
-        // DevTools（ブラウザインスペクタ）を自動で開く。
-        // リリースビルド（`npm run tauri build`）では実行されない。
+        // PC 起動時の自動起動プラグインを登録する
+        // Windows: HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Run にレジストリ登録
+        // macOS  : LaunchAgent として登録
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            None, // 追加引数なし
+        ))
         .setup(|app| {
+            use tauri::Manager;
+
+            // ---- ① デバッグ時のみ DevTools を自動起動 ----
             #[cfg(debug_assertions)]
             {
-                use tauri::Manager;
-                // メインウィンドウの DevTools を自動起動する
-                // Vue の console.log / console.error や Vue DevTools が利用可能になる
                 if let Some(window) = app.get_webview_window("main") {
                     window.open_devtools();
                     println!("[DEBUG] DevTools を起動しました");
                 }
             }
+
+            // ---- ② PC 起動時の自動起動を有効化 ----
+            {
+                use tauri_plugin_autostart::ManagerExt;
+                match app.autolaunch().enable() {
+                    Ok(_)  => println!("[AUTOSTART] PC起動時の自動起動を設定しました"),
+                    Err(e) => eprintln!("[AUTOSTART] 自動起動の設定に失敗しました: {}", e),
+                }
+            }
+
+            // ---- ③ システムトレイアイコンを設定 ----
+            // 閉じるボタンでウィンドウを非表示にした後も操作できるようにトレイに常駐する
+            {
+                use tauri::menu::{Menu, MenuItem};
+                use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+
+                // トレイ右クリックメニュー（表示 / 終了）
+                let show_item = MenuItem::with_id(app, "show", "表示", true, None::<&str>)?;
+                let quit_item = MenuItem::with_id(app, "quit", "終了", true, None::<&str>)?;
+                let menu = Menu::with_items(app, &[&show_item, &quit_item])?;
+
+                TrayIconBuilder::new()
+                    .icon(app.default_window_icon().unwrap().clone()) // アプリアイコンをトレイに使用
+                    .tooltip("PC管理エージェント")                       // ホバー時のツールチップ
+                    .menu(&menu)
+                    .menu_on_left_click(false) // 左クリックはウィンドウ表示、右クリックはメニュー
+                    .on_menu_event(|app, event| match event.id.as_ref() {
+                        // 「表示」: ウィンドウを前面に出す
+                        "show" => {
+                            if let Some(window) = app.get_webview_window("main") {
+                                let _ = window.show();
+                                let _ = window.set_focus();
+                            }
+                        }
+                        // 「終了」: アプリを完全に終了する
+                        "quit" => {
+                            app.exit(0);
+                        }
+                        _ => {}
+                    })
+                    .on_tray_icon_event(|tray, event| {
+                        // トレイアイコンを左クリックしたらウィンドウを表示する
+                        if let TrayIconEvent::Click {
+                            button: MouseButton::Left,
+                            button_state: MouseButtonState::Up,
+                            ..
+                        } = event
+                        {
+                            let app = tray.app_handle();
+                            if let Some(window) = app.get_webview_window("main") {
+                                let _ = window.show();
+                                let _ = window.set_focus();
+                            }
+                        }
+                    })
+                    .build(app)?;
+            }
+
+            // ---- ④ ウィンドウの閉じるボタン → 非表示（トレイ常駐）に変更 ----
+            // アプリを終了させず、ウィンドウだけを隠す。
+            // 完全終了はトレイ右クリックメニューの「終了」から行う。
+            let main_window = app.get_webview_window("main").unwrap();
+            let hidden_window = main_window.clone();
+            main_window.on_window_event(move |event| {
+                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                    api.prevent_close();           // デフォルトの終了処理をキャンセル
+                    let _ = hidden_window.hide();  // ウィンドウを非表示にしてトレイに常駐
+                }
+            });
+
             Ok(())
         })
         // 公開する Tauri コマンドを登録する
@@ -762,6 +991,7 @@ pub fn run() {
             load_agent_number,           // エージェント番号をファイルから読み込むコマンド
             save_agent_number,           // エージェント番号をファイルに保存するコマンド
             fetch_asset_acquisition_type, // 起動時に取得区分をバックエンドから取得するコマンド
+            collect_windows_update,      // WindowsUpdate 適用判定コマンド
         ])
         .run(tauri::generate_context!())
         .expect("Tauriアプリケーションの起動に失敗しました");

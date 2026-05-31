@@ -2,7 +2,10 @@
   <AppLayout>
     <div class="page">
       <div class="page-header">
-        <h2 class="page-title">📦 レンタル管理</h2>
+        <h2 class="page-title">
+          <img src="@/image/icon-rental.svg" class="page-title-icon" alt="レンタル管理" />
+          レンタル管理
+        </h2>
         <div class="header-actions">
           <button v-if="authStore.isItStaff" class="btn btn-secondary" @click="showVendorModal = true">
             ベンダー管理
@@ -27,7 +30,9 @@
           <option value="false">契約中</option>
           <option value="true">返却済</option>
         </select>
-        <button class="btn btn-secondary" @click="doSearch">🔍 検索</button>
+        <button class="btn btn-secondary" @click="doSearch">
+          <img src="@/image/icon-search.svg" class="btn-icon-img" alt="検索" /> 検索
+        </button>
         <button class="btn btn-ghost" @click="resetSearch">リセット</button>
       </div>
 
@@ -147,7 +152,7 @@
               <td>{{ v.companyName }}</td>
               <td>{{ v.contactName || '—' }}</td>
               <td>{{ v.phone || '—' }}</td>
-              <td><button class="btn-icon" @click="editVendor(v)">✏️</button></td>
+              <td><button class="btn-icon" @click="editVendor(v)"><img src="@/image/icon-edit.svg" alt="編集" /></button></td>
             </tr>
           </tbody>
         </table>

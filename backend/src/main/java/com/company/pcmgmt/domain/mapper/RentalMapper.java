@@ -130,4 +130,37 @@ public interface RentalMapper {
      * @return 更新件数（通常 1）
      */
     int updateVendor(RentalVendor vendor);
+
+    // ======= エージェント自動登録用 =======
+
+    /**
+     * PC資産IDに紐付くレンタル契約を取得する（エージェント自動登録時の重複確認用）
+     *
+     * <p>pc_acquisition_rental の UNIQUE(pc_asset_id) 制約により、
+     * 1資産につき1件のみ存在する。</p>
+     *
+     * @param pcAssetId PC資産ID
+     * @return PcAcquisitionRental エンティティ（存在しない場合は null）
+     */
+    PcAcquisitionRental findByPcAssetId(@Param("pcAssetId") Long pcAssetId);
+
+    /**
+     * システムベンダー（エージェント自動登録用プレースホルダー）の ID を取得する。
+     *
+     * <p>会社名が {@code "エージェント自動登録"} のベンダーを検索する。
+     * 存在しない場合は null を返す。</p>
+     *
+     * @return システムベンダーID（存在しない場合は null）
+     */
+    Long findSystemVendorId();
+
+    /**
+     * システムベンダー（エージェント自動登録用プレースホルダー）を新規登録する。
+     *
+     * <p>INSERT 後、自動採番された ID が {@code vendor.id} にセットされる。</p>
+     *
+     * @param vendor 登録するシステムベンダーエンティティ
+     * @return 挿入件数（通常 1）
+     */
+    int insertSystemVendor(RentalVendor vendor);
 }

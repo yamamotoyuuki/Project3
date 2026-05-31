@@ -12,9 +12,13 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 # Tauri 本体とプラグイン
-# devtools: デバッグビルド時にブラウザインスペクタ（DevTools）を開くために必要
-tauri = { version = "2", features = ["devtools"] }
+# devtools    : デバッグビルド時にブラウザインスペクタ（DevTools）を開くために必要
+# tray-icon   : システムトレイアイコン（常駐機能）に必要
+tauri = { version = "2", features = ["devtools", "tray-icon"] }
 tauri-plugin-shell = "2"
+
+# PC起動時の自動起動（Windows: レジストリ HKCU\...\Run に登録）
+tauri-plugin-autostart = "2"
 
 # シリアライズ・デシリアライズ（AgentReport の JSON 変換）
 serde = { version = "1", features = ["derive"] }

@@ -2,7 +2,10 @@
   <AppLayout>
     <div class="page">
       <div class="page-header">
-        <h2 class="page-title">👥 社員管理</h2>
+        <h2 class="page-title">
+          <img src="@/image/icon-employee.svg" class="page-title-icon" alt="社員管理" />
+          社員管理
+        </h2>
         <button v-if="authStore.isItStaff" class="btn btn-primary" @click="openCreate">
           ＋ 社員登録
         </button>
@@ -21,7 +24,9 @@
           <option value="true">在籍中</option>
           <option value="false">退職済</option>
         </select>
-        <button class="btn btn-secondary" @click="doSearch">🔍 検索</button>
+        <button class="btn btn-secondary" @click="doSearch">
+          <img src="@/image/icon-search.svg" class="btn-icon-img" alt="検索" /> 検索
+        </button>
         <button class="btn btn-ghost" @click="resetSearch">リセット</button>
       </div>
 
@@ -63,7 +68,7 @@
                     class="btn-icon"
                     title="編集"
                     @click="openEdit(e)"
-                  >✏️</button>
+                  ><img src="@/image/icon-edit.svg" alt="編集" /></button>
                 </td>
               </tr>
             </tbody>

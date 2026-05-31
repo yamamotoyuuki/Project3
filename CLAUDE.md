@@ -1,22 +1,4 @@
-# CLAUDE.md
-
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
-## Project Status
-
-This repository is currently empty and in its initial setup phase. Add project-specific guidance here as the codebase evolves.
-
-## Repository Configuration
-
-A `.claude/settings.local.json` exists with the following allowed shell permission:
-
-```
-Bash(grep -E "\\.\\(json|md|ts|js|py|toml|yaml\\)$")
-```
-
-Update this file with build commands, architecture notes, and development workflows once the project is initialized.
-
-## Design Documents
+## プロジェクト概要
 
 要件定義・基本設計書を参照してください。
 @PC管理システム_要件定義_設計書_v2_9.md
@@ -25,16 +7,15 @@ Update this file with build commands, architecture notes, and development workfl
 - 各フェーズ完了後は必ず作業内容を報告し、次の指示を待つこと
 - ファイルを新規作成・削除する前に確認を取ること
 - エラーが発生したら自己解決を3回試み、それでも無理なら報告すること
-- セッションが途中で途切れることを想定して、こまめに現在の進捗をdocs/progress.mdに記録してください。次のセッションで再開できるよう、どこまで完了したかを書いてください。
+- セッションが途中で途切れることを想定して、常に現在の進捗をdocs/progress.mdに記録すること。次のセッションで再開できるよう、どこまで完了したかを書くこと。
 - 生成する成果物には、すべてコメントを記入すること（処理を説明するコメント、変数名の論理名など）
 - コメントには、環境依存文字を使用しないこと。英数字、記号は半角で記入すること
-- 変数名のネーミングは、アッパーキャメルケースを採用すること。
 - 開発中に、プロジェクトとは関係のない設定（例えばPCセキュリティ設定、レジストリ設定など）は変更しないこと
 
 ## 技術スタック
 | **区分** | **技術** | **バージョン** | **備考** |
 | --- | --- | --- | --- |
-| フロントエンド（Web） | Vue.js + TypeScript | Vue 3 / Vite | Composition API、Pinia（状態管理）※採用理由は下表参照 |
+| フロントエンド（Web） | Vue.js + TypeScript | Vue 3 / Vite | Composition API、Pinia（状態管理）
 | フロントエンド（エージェント） | Vue.js + TypeScript + Tauri | Tauri 2.x | Rustバックエンド、クロスプラットフォーム |
 | バックエンド API | Java / Spring Boot | 3.x / Java 21 | REST API、Spring Security（JWT） |
 | データベース | MySQL | 8.x | MyBatis、Flyway（マイグレーション） |
@@ -42,6 +23,32 @@ Update this file with build commands, architecture notes, and development workfl
 | コンテナ | Docker / Docker Compose | 最新安定版 | 開発・本番環境共通 |
 | ビルドツール | Gradle | 最新安定版 | backendビルド・依存関係管理 |
 | CIツール | GitHub Actions | ? | ビルド・テスト・デプロイ自動化 |
+
+## コーディング規約
+### 命名規則
+| 対象 | 形式 | 例 |
+|------|------|-----|
+| 定数 | lowerCamelCase | `userName` |
+| APIエンドポイント | kebab-case | `/api/task-items` |
+| Boolean変数 | is/has/can接頭辞 | `isLoading`, `hasError` |
+
+### コンポーネント設計
+- 関数コンポーネント + アロー関数で統一
+- Propsは必ず型を分離定義する
+- ファイル内の順序: 型定義 → コンポーネント → スタイル
+
+### コーディングでやってはいけないこと
+- **`any` 型を使わない**
+  → 理由: 型安全性が破壊される。不明な型は `unknown` で受けて型ガードする
+- **`index` をリストの `key` にしない**
+  → 理由: 並び替え・削除時にレンダリングバグが起きる。必ず一意のIDを使う
+- **1ファイル300行以上にしない**
+  → 理由: レビューが困難。コンポーネント分割 or カスタムフック抽出で対応
+- **env変数をコードにハードコードしない**
+  → 理由: セキュリティリスク。`.env` + `process.env` 経由で参照する
+
+### コーディングで必ず守ること
+- アイコンは画像化し、imageフォルダに格納すること。各コンポーネントはimageフォルダに格納された画像ファイルを読み込む実装にすること。
 
 ## データベース接続情報
 ホスト名：localhost
@@ -51,5 +58,5 @@ Update this file with build commands, architecture notes, and development workfl
 ## 不具合格納フォルダ
 ./docs/issue
 
-##kubun 仕様変更格納フォルダ
+## 仕様変更格納フォルダ
 ./docs/codeChange

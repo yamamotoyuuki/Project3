@@ -4,16 +4,20 @@ import com.company.pcmgmt.api.dto.request.AgentRegisterRequest;
 import com.company.pcmgmt.api.dto.request.AgentReportRequest;
 import com.company.pcmgmt.domain.entity.Agent;
 import com.company.pcmgmt.domain.entity.Employee;
+import com.company.pcmgmt.domain.entity.PcAcquisitionRental;
 import com.company.pcmgmt.domain.entity.PcAsset;
 import com.company.pcmgmt.domain.entity.PcHardwareInfo;
+import com.company.pcmgmt.domain.entity.RentalVendor;
 import com.company.pcmgmt.domain.mapper.AgentMapper;
 import com.company.pcmgmt.domain.mapper.EmployeeMapper;
+import com.company.pcmgmt.domain.mapper.RentalMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
 
+import java.time.LocalDate;
 import java.util.UUID;
 
 /**
@@ -50,6 +54,9 @@ public class AgentService {
 
     /** 社員マスタの DB アクセスを担うマッパー（未登録ユーザーの自動登録に使用） */
     private final EmployeeMapper employeeMapper;
+
+    /** レンタル契約・ベンダーの DB アクセスを担うマッパー（レンタル自動登録に使用） */
+    private final RentalMapper rentalMapper;
 
     /**
      * エージェント報告で使用者名が employees テーブルに存在しない場合に設定する
@@ -301,6 +308,14 @@ public class AgentService {
             log.info("取得区分を更新: agentNumber={}, acquisitionType={}", agentNumber, req.getAcquisitionType());
         }
 
+        // ---- ⑨ レンタル区分の場合、pc_acquisition_rental に登録（未登録の場合のみ）----
+        // 仕様変更（codeChange03）: エージェントから RENTAL でリクエストされた場合、
+        // pc_acquisition_rental テーブルにレコードが存在しなければ自動登録する。
+        // すでに登録済みの場合は既存レコードをそのまま使用する（更新は行わない）。
+        if ("RENTAL".equals(req.getAcquisitionType())) {
+            registerRentalIfAbsent(asset);
+        }
+
         log.info("エージェント報告受信: hostname={}, agentNumber={}, isNew={}",
             req.getHostname(), agentNumber, isNew);
         return "OK";
@@ -360,14 +375,88 @@ public class AgentService {
         log.info("PC資産自動登録: assetNumber={}, hostname={}, agentNumber={}, acquisitionType={}",
             assetNumber, req.getHostname(), agentNumber, acquisitionType);
 
-        // 後続処理（step ③④⑤⑦⑧）は agentNumber を使って操作するため、
-        // asset エンティティは null チェック用にダミーを返すだけでよい
+        // INSERT 後に DB から再取得して自動採番された id を含む完全なエンティティを返す。
+        // step ⑨ のレンタル自動登録で pc_asset_id（= asset.getId()）が必要なため。
+        PcAsset fetched = null;
+        if (agentNumber != null && !agentNumber.isBlank()) {
+            fetched = agentMapper.findAssetByAgentNumber(agentNumber);
+        }
+        if (fetched == null) {
+            fetched = agentMapper.findAssetByHostname(req.getHostname());
+        }
+        if (fetched != null) {
+            return fetched;
+        }
+
+        // フォールバック（通常はここに到達しない）
         PcAsset created = new PcAsset();
         created.setAssetNumber(assetNumber);
         created.setHostname(req.getHostname());
         created.setAgentNumber(agentNumber);
         created.setAcquisitionType(acquisitionType);
         return created;
+    }
+
+    /**
+     * 取得区分が "RENTAL" の場合に pc_acquisition_rental へ自動登録する（未登録時のみ）。
+     *
+     * <p>処理手順:
+     * <ol>
+     *   <li>pc_asset_id で既存レンタル契約を確認する（UNIQUE 制約あり）</li>
+     *   <li>既存レコードがあれば何もしない（既存の更新処理に委ねる）</li>
+     *   <li>未登録の場合はシステムベンダーを取得（なければ作成）してレンタル契約を INSERT する</li>
+     * </ol>
+     * </p>
+     *
+     * <p>登録されるレンタル契約の値:
+     * <ul>
+     *   <li>rental_start_date : 本日（システム日付）</li>
+     *   <li>rental_end_date   : 本日 + 1年（暫定値。管理者が後から更新すること）</li>
+     *   <li>rental_vendor_id  : "エージェント自動登録" ベンダー（なければ自動作成）</li>
+     *   <li>contract_number, monthly_fee 等 : 未設定（null）</li>
+     * </ul>
+     * </p>
+     *
+     * @param asset 対象PC資産エンティティ（id が必須）
+     */
+    private void registerRentalIfAbsent(PcAsset asset) {
+        if (asset == null || asset.getId() == null) {
+            log.warn("レンタル自動登録スキップ: PC資産のIDが取得できません（asset={}）", asset);
+            return;
+        }
+
+        // 既にレンタル登録があるか確認（pc_acquisition_rental の UNIQUE(pc_asset_id) を考慮）
+        PcAcquisitionRental existing = rentalMapper.findByPcAssetId(asset.getId());
+        if (existing != null) {
+            log.debug("レンタル登録済みのためスキップ: pcAssetId={}, rentalId={}", asset.getId(), existing.getId());
+            return;
+        }
+
+        // システムベンダー（"エージェント自動登録"）を取得、なければ新規作成する
+        // rental_vendor_id は NOT NULL のためプレースホルダーとして使用する
+        Long vendorId = rentalMapper.findSystemVendorId();
+        if (vendorId == null) {
+            RentalVendor systemVendor = new RentalVendor();
+            systemVendor.setCompanyName("エージェント自動登録");
+            systemVendor.setNote(
+                "エージェントアプリから RENTAL でリクエストされた機器を自動登録する際に使用するシステムベンダーです。"
+                + " 管理者が実際のベンダー情報に更新してください。");
+            rentalMapper.insertSystemVendor(systemVendor);
+            vendorId = systemVendor.getId();
+            log.info("システムベンダーを新規作成しました: id={}", vendorId);
+        }
+
+        // レンタル契約を新規登録する（日付は暫定値。管理者が後から正確な値に更新する）
+        PcAcquisitionRental rental = new PcAcquisitionRental();
+        rental.setPcAssetId(asset.getId());
+        rental.setRentalVendorId(vendorId);
+        rental.setRentalStartDate(LocalDate.now());             // 開始日: 本日
+        rental.setRentalEndDate(LocalDate.now().plusYears(1));  // 終了日: 1年後（暫定）
+        // contract_number, monthly_fee, contract_file_path は未設定（null）
+
+        rentalMapper.insert(rental);
+        log.info("レンタル機器自動登録完了: rentalId={}, pcAssetId={}, assetNumber={}",
+            rental.getId(), asset.getId(), asset.getAssetNumber());
     }
 
     /**

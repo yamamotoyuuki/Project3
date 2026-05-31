@@ -2,7 +2,10 @@
   <AppLayout>
     <div class="page">
       <div class="page-header">
-        <h2 class="page-title">🔑 ソフトウェアライセンス</h2>
+        <h2 class="page-title">
+          <img src="@/image/icon-software.svg" class="page-title-icon" alt="ソフトウェア" />
+          ソフトウェアライセンス
+        </h2>
         <button v-if="authStore.isItStaff" class="btn btn-primary" @click="openCreate">
           ＋ 登録
         </button>
@@ -14,7 +17,9 @@
         <label class="checkbox-label">
           <input v-model="searchForm.overLimit" type="checkbox" /> ライセンス超過のみ
         </label>
-        <button class="btn btn-secondary" @click="doSearch">🔍 検索</button>
+        <button class="btn btn-secondary" @click="doSearch">
+          <img src="@/image/icon-search.svg" class="btn-icon-img" alt="検索" /> 検索
+        </button>
         <button class="btn btn-ghost" @click="resetSearch">リセット</button>
       </div>
 
@@ -43,12 +48,15 @@
                 <td class="num">{{ s.purchasedCount }}</td>
                 <td class="num" :class="{ 'text-danger': s.overLimit }">{{ s.installedCount }}</td>
                 <td>
-                  <span v-if="s.overLimit" class="badge over">⚠ 超過</span>
+                  <!-- imageフォルダの警告アイコン画像を使用（規約準拠） -->
+                  <span v-if="s.overLimit" class="badge over">
+                    <img src="@/image/icon-warning.svg" class="badge-icon" alt="warning" /> 超過
+                  </span>
                   <span v-else-if="s.purchasedCount === 0" class="badge free">フリー</span>
                   <span v-else class="badge ok">正常</span>
                 </td>
                 <td>
-                  <button v-if="authStore.isItStaff" class="btn-icon" @click="openEdit(s)">✏️</button>
+                  <button v-if="authStore.isItStaff" class="btn-icon" @click="openEdit(s)"><img src="@/image/icon-edit.svg" alt="編集" /></button>
                 </td>
               </tr>
             </tbody>

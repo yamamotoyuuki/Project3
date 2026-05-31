@@ -2,14 +2,18 @@
   <AppLayout>
     <div class="page">
       <div class="page-header">
-        <h2 class="page-title">💻 PC一覧</h2>
+        <!-- ページタイトル（imageフォルダのアイコン画像を使用。規約準拠） -->
+        <h2 class="page-title">
+          <img src="@/image/icon-pc.svg" class="page-title-icon" alt="PC" />
+          PC一覧
+        </h2>
         <div class="header-actions">
-          <!-- CSV / Excel エクスポートボタン -->
+          <!-- CSV / Excel エクスポートボタン（imageフォルダのアイコン画像を使用） -->
           <a class="btn btn-ghost" :href="exportUrl('assets.csv')" download>
-            📥 CSV
+            <img src="@/image/icon-csv.svg" class="btn-icon-img" alt="CSV" /> CSV
           </a>
           <a class="btn btn-ghost" :href="exportUrl('assets.xlsx')" download>
-            📊 Excel
+            <img src="@/image/icon-excel.svg" class="btn-icon-img" alt="Excel" /> Excel
           </a>
           <button v-if="authStore.isItStaff" class="btn btn-primary" @click="openCreate">
             ＋ PC登録
@@ -38,7 +42,9 @@
           <option value="PURCHASE">購入</option>
           <option value="RENTAL">レンタル</option>
         </select>
-        <button class="btn btn-secondary" @click="doSearch">🔍 検索</button>
+        <button class="btn btn-secondary" @click="doSearch">
+          <img src="@/image/icon-search.svg" class="btn-icon-img" alt="検索" /> 検索
+        </button>
         <button class="btn btn-ghost" @click="resetSearch">リセット</button>
       </div>
 
@@ -93,7 +99,7 @@
                     class="btn-icon"
                     title="編集"
                     @click="openEdit(a)"
-                  >✏️</button>
+                  ><img src="@/image/icon-edit.svg" alt="編集" /></button>
                 </td>
               </tr>
             </tbody>

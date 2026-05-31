@@ -2,7 +2,7 @@
   <AppLayout>
     <div class="page">
       <div class="page-header">
-        <h2 class="page-title">⚙️ ユーザー管理</h2>
+        <h2 class="page-title"><img src="@/image/icon-settings.svg" class="page-title-icon" alt="ユーザー管理" />ユーザー管理</h2>
         <button class="btn btn-primary" @click="openCreate">＋ 追加</button>
       </div>
 
@@ -36,7 +36,7 @@
                   </span>
                 </td>
                 <td>
-                  <button class="btn-icon" @click="openEdit(u)">✏️</button>
+                  <button class="btn-icon" @click="openEdit(u)"><img src="@/image/icon-edit.svg" alt="編集" /></button>
                 </td>
               </tr>
             </tbody>
