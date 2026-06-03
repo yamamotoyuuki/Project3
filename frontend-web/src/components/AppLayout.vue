@@ -71,7 +71,7 @@ const roleLabel = computed(() => {
 const navItems = computed(() => {
   const items = [
     { to: '/dashboard',  icon: iconDashboard, label: 'ダッシュボード' },
-    { to: '/assets',     icon: iconPc,        label: 'PC一覧' },
+    { to: '/assets',     icon: iconPc,        label: '機器一覧' },
     { to: '/employees',  icon: iconEmployee,  label: '社員管理' },
     { to: '/loans',      icon: iconLoan,      label: '貸出管理' },
     { to: '/rentals',    icon: iconRental,    label: 'レンタル管理' },

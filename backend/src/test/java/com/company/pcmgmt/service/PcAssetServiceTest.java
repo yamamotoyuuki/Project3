@@ -1,13 +1,15 @@
 package com.company.pcmgmt.service;
 
-import com.company.pcmgmt.api.dto.request.AssetCreateRequest;
-import com.company.pcmgmt.api.dto.request.AssetSearchRequest;
-import com.company.pcmgmt.api.dto.request.AssetUpdateRequest;
-import com.company.pcmgmt.api.dto.response.AssetResponse;
+import com.company.pcmgmt.api.dto.request.asset.AssetCreateRequest;
+import com.company.pcmgmt.api.dto.request.asset.AssetSearchRequest;
+import com.company.pcmgmt.api.dto.request.asset.AssetUpdateRequest;
+import com.company.pcmgmt.api.dto.response.asset.AssetResponse;
 import com.company.pcmgmt.api.dto.response.PageResponse;
 import com.company.pcmgmt.domain.entity.PcAsset;
-import com.company.pcmgmt.domain.mapper.PcAssetMapper;
+import com.company.pcmgmt.domain.mapper.asset.PcAssetMapper;
 import com.company.pcmgmt.exception.ResourceNotFoundException;
+import com.company.pcmgmt.service.asset.PcAssetService;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;

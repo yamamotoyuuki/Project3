@@ -1,7 +1,7 @@
 import apiClient from './axios'
 import type {
   ApiResponse, PageResponse,
-  PcRental, RentalCreateRequest, RentalSearchParams,
+  PcRental, RentalCreateRequest, RentalUpdateRequest, RentalSearchParams,
   RentalVendor, RentalVendorCreateRequest,
 } from '@/types'
 
@@ -15,6 +15,9 @@ export const rentalsApi = {
   },
   create(req: RentalCreateRequest): Promise<ApiResponse<PcRental>> {
     return apiClient.post<ApiResponse<PcRental>>('/rentals', req).then(r => r.data)
+  },
+  update(id: number, req: RentalUpdateRequest): Promise<ApiResponse<PcRental>> {
+    return apiClient.put<ApiResponse<PcRental>>(`/rentals/${id}`, req).then(r => r.data)
   },
   returnRental(id: number): Promise<ApiResponse<PcRental>> {
     return apiClient.put<ApiResponse<PcRental>>(`/rentals/${id}/return`).then(r => r.data)

@@ -1,12 +1,18 @@
 <!--
+  機能ID:
+    AGT_PCI0101 : PC情報表示タブ
+    AGT_PCI0102 : PC情報送信タブ
+    AGT_CFG0101 : 設定タブ
+    AGT_CFG0102 : 新規登録確認モーダル
+    AGT_WUP0101 : WindowsUpdate適用判定
   agent/src/App.vue
   -----------------------------------------------
   PC管理エージェント - メインコンポーネント（Tauri デスクトップアプリ）
 
   3画面（タブ）構成:
-    - 📻 PC情報: 収集した PC のハードウェア・OS 情報を表示
-    - 📤 送信: 収集情報をバックエンド API へ POST 送信
-    - ⚙️ 設定: 資産番号・設置場所を設定して永続化
+    - PC情報 (AGT_PCI0101): 収集した PC のハードウェア・OS 情報を表示
+    - 送信   (AGT_PCI0102): 収集情報をバックエンド API へ POST 送信
+    - 設定   (AGT_CFG0101): 資産番号・設置場所を設定して永続化
 
   Tauri コマンド（Rust 側 lib.rs で定義）:
     - load_config(): application.yml から API 設定を読み込む
@@ -222,6 +228,7 @@
         <!-- imageフォルダのアイコン画像を type に応じて読み込む -->
         <img v-if="collectStatus.type === 'success'" src="./image/icon-success.svg" class="status-icon" alt="success" />
         <img v-else-if="collectStatus.type === 'error'" src="./image/icon-error.svg" class="status-icon" alt="error" />
+        <img v-else-if="collectStatus.type === 'warning'" src="./image/icon-warning.svg" class="status-icon" alt="warning" />
         {{ collectStatus.message }}
       </p>
     </div>
@@ -348,6 +355,18 @@
   interface ApiConfig {
     /** バックエンドAPIのベースURL（例: "http://localhost:8080/api/v1"） */
     base_url: string
+  }
+
+  /**
+   * fetch_asset_acquisition_type コマンドの戻り値型（Rust AssetInfo に対応）
+   * - acquisitionType: 取得区分（"PURCHASE" / "RENTAL" / null）
+   * - isReturned     : 返却済みフラグ（RENTAL かつ返却済みの場合に true）
+   */
+  interface AssetInfo {
+    /** 取得区分（"PURCHASE" / "RENTAL" / null = 未設定） */
+    acquisitionType: string | null
+    /** 返却済みフラグ（Rust の rename_all="camelCase" により isReturned で受け取る） */
+    isReturned: boolean
   }
 
   /** 現在表示中のタブ */
@@ -590,6 +609,14 @@
   const acquisitionTypeFromBackend = ref < string | null > (null)
 
   /**
+   * レンタル返却済みフラグ
+   * - true : 取得区分が RENTAL かつ返却済み（pc_acquisition_rental.return_date が設定済み）
+   * - false: 購入品 / 未返却 / 資産未登録
+   * 「情報を取得」ボタン押下後に fetchAcquisitionType() で更新される。
+   */
+  const isRentalReturned = ref(false)
+
+  /**
    * 設定値（localStorage に永続化）
    * assetNumber:     資産番号（例: "PC-00123"）
    * location:        設置場所（pc_assets.location に登録）
@@ -660,8 +687,21 @@
       collectStatus.value = { type: 'error', message: '取得に失敗しました' }
       startCollectStatusFadeTimer()
     }
-    // PC情報収集後にバックエンドから取得区分を取得する（ホスト名が確定してから実行）
+    // PC情報収集後にバックエンドから取得区分・返却状況を取得する（ホスト名が確定してから実行）
     await fetchAcquisitionType()
+
+    // 返却済みの場合は「取得しました」を返却済み警告メッセージに差し替える
+    // 既存のフェードタイマーをキャンセルして warning メッセージで再スタートする
+    if (isRentalReturned.value) {
+      if (collectStatusTimer !== null) {
+        clearTimeout(collectStatusTimer)
+        collectStatusTimer = null
+      }
+      isCollectStatusFading.value = false
+      // アイコンは imageフォルダの icon-warning.svg を template 側で表示（規約準拠）
+      collectStatus.value = { type: 'warning', message: 'このPCは使用を停止してます。\n管理者に連絡してください。' }
+      startCollectStatusFadeTimer()
+    }
   }
 
   /**
@@ -709,26 +749,35 @@
     // エージェント番号もホスト名も未取得の場合はスキップする
     if (!agentNumber.value && !pcInfo.value?.hostname) return
     try {
-      const acqType = await invoke < string | null > ('fetch_asset_acquisition_type', {
+      // Rust コマンドが AssetInfo | null を返す（取得区分 + 返却済みフラグ）
+      const assetInfo = await invoke < AssetInfo | null > ('fetch_asset_acquisition_type', {
         apiUrl: apiUrl.value,
-        agentNumber: agentNumber.value ?? '',       // 未取得時は空文字（バックエンド側でスキップ）
-        hostname: pcInfo.value?.hostname ?? '',  // フォールバック検索用ホスト名
+        agentNumber: agentNumber.value ?? '',   // 未取得時は空文字（バックエンド側でスキップ）
+        hostname: pcInfo.value?.hostname ?? '', // フォールバック検索用ホスト名
       })
-      if (acqType) {
-        // バックエンドに設定済み → 読み取り専用にして表示する
-        acquisitionTypeFromBackend.value = acqType
-        // 設定欄の表示値もバックエンドの値に合わせる
-        settings.value.acquisitionType = acqType
-        console.info('取得区分をバックエンドから取得しました:', acqType)
+
+      if (assetInfo?.acquisitionType) {
+        // バックエンドに取得区分が設定済み → 読み取り専用にして表示する
+        acquisitionTypeFromBackend.value = assetInfo.acquisitionType
+        settings.value.acquisitionType  = assetInfo.acquisitionType
+        console.info('取得区分をバックエンドから取得しました:', assetInfo.acquisitionType)
       } else {
         // 未設定 → 選択欄を活性化（ユーザーが入力可能）
         acquisitionTypeFromBackend.value = null
         console.info('取得区分はバックエンドに未設定です。選択欄を活性化します。')
       }
+
+      // 返却済みフラグを更新する（RENTAL かつ返却済みの場合に true）
+      // PC情報タブに警告メッセージを表示するために使用する
+      isRentalReturned.value = assetInfo?.isReturned ?? false
+      if (isRentalReturned.value) {
+        console.warn('このPCはレンタル返却済みです。')
+      }
     } catch (e) {
-      // エラー時も活性化（バックエンド未起動等）
+      // エラー時は選択欄を活性化し、返却済みフラグをリセットする（バックエンド未起動等）
       acquisitionTypeFromBackend.value = null
-      console.warn('取得区分の取得に失敗しました:', e)
+      isRentalReturned.value = false
+      console.warn('資産情報の取得に失敗しました:', e)
     }
   }
 
@@ -1156,6 +1205,14 @@
   .status-msg.loading {
     background: #ede9fe;
     color: #5b21b6;
+  }
+
+  /* オレンジ: レンタル返却済み警告（「取得しました」の代わりに表示） */
+  .status-msg.warning {
+    background: #fff7ed;
+    color: #92400e;
+    /* \n を改行として描画するために pre-line を指定する */
+    white-space: pre-line;
   }
 
   /* ==============================

@@ -1,6 +1,6 @@
 # 開発進捗記録
 
-最終更新: 2026-05-26
+最終更新: 2026-06-03
 
 ---
 
@@ -106,6 +106,112 @@
 #### フロントエンド管理画面変更
 - [x] `types/index.ts`: PcAsset に agentNumber フィールド追加
 - [x] `AssetListView.vue`: エージェント番号カラム追加（colspan も 9 に更新）
+
+---
+
+---
+
+## ✅ コードマスタ追加（2026-06-03）
+
+### 作業内容: code_master テーブル（汎用コードマスタ）の追加
+
+#### 追加ファイル
+- [x] `backend/src/main/resources/db/migration/V6__create_code_master_table.sql`
+  - `code_master` テーブル CREATE
+  - 初期データ INSERT: PC_STATUS（3件）、ACQUISITION_TYPE（2件）、USER_ROLE（3件）、AGENT_EVENT_TYPE（3件）、OPERATION_TYPE（4件）
+
+#### 更新ドキュメント
+- [x] `データベース設計.md`: テーブル数 16→17、テーブル一覧追加、ER図更新、4.17 詳細定義追加、マイグレーション履歴V6追記、設計上の注意点6.6追記、改訂履歴1.1追記
+
+---
+
+## ✅ code_master に DEVICE_TYPE（機器種別）追加（2026-06-03）
+
+### 作業内容: code_master テーブルへの機器種別区分値の追加
+
+#### 追加ファイル
+- [x] `backend/src/main/resources/db/migration/V8__add_device_type_to_code_master.sql`
+  - `DEVICE_TYPE`（機器種別）として9件の区分値を INSERT
+  - LAPTOP / DESKTOP / DISPLAY / KEYBOARD / MOUSE / SMARTPHONE / TABLET / MOBILE_ROUTER / EXTERNAL_STORAGE
+
+#### 更新ドキュメント
+- [x] `データベース設計.md`: 4.17 に DEVICE_TYPE 区分値テーブル追加、マイグレーション履歴V8追記、改訂履歴1.3追記
+
+---
+
+---
+
+## ✅ コードマスタ共通 API 追加（2026-06-03）
+
+### 作業内容: code_master テーブルからコード値を取得する共通 API の実装
+
+#### 追加ファイル
+- [x] `api/dto/response/common/CodeValueResponse.java`
+  - code_value（コード値）、code_label（表示ラベル）を持つレスポンス DTO
+- [x] `domain/mapper/common/CodeMasterMapper.java`
+  - MyBatis マッパーインターフェース（findActiveByCodeType）
+- [x] `resources/.../mapper/common/CodeMasterMapper.xml`
+  - SQL: code_type=#{codeType} AND is_active=1 ORDER BY sort_order ASC
+- [x] `service/common/CodeMasterService.java`
+  - findActiveByCodeType(String codeType): List<CodeValueResponse> を返す
+- [x] `api/controller/common/CommonController.java`
+  - GET /api/v1/common/codes/{codeType} エンドポイント
+- [x] `constant/ApiConstants.java`: COMMON_PATH 定数追加
+
+#### エンドポイント仕様
+- URL: `GET /api/v1/common/codes/{codeType}`
+- 認証: JWT 認証必須
+- パスパラメータ: codeType（例: PC_STATUS, DEVICE_TYPE, ACQUISITION_TYPE）
+- レスポンス: `[{codeValue: "...", codeLabel: "..."}, ...]`
+- 条件: is_active=1 のみ / sort_order ASC
+
+#### 副作用修正
+- [x] 既存 Java ファイル 54件の UTF-8 BOM を一括除去（コンパイルエラー解消）
+- ビルド確認: `BUILD SUCCESSFUL`
+
+---
+
+---
+
+## ✅ code_master から id カラム削除（2026-06-03）
+
+### 作業内容: code_master テーブルの id（surrogate key）削除・複合主キーへの変更
+
+#### 追加ファイル
+- [x] `backend/src/main/resources/db/migration/V9__drop_id_from_code_master.sql`
+  - id の AUTO_INCREMENT 除去 → PRIMARY KEY 削除 → UNIQUE 制約削除 → idx_code_master_type 削除 → id カラム削除 → (code_type, code_value) を PRIMARY KEY に追加
+
+#### 更新ドキュメント
+- [x] `データベース設計.md`: 4.17 カラム定義・インデックス定義を更新、マイグレーション履歴 V9 追記、改訂履歴 1.4 追記
+
+#### 変更なしファイル（id を参照していないため）
+- `CodeMasterMapper.java` / `CodeMasterMapper.xml` / `CodeMasterService.java` / `CommonController.java`
+
+---
+
+---
+
+## ✅ pc_assets に device_type カラム追加（2026-06-03）
+
+### 作業内容: 機器種別（device_type）の DB 保持対応
+
+#### バックエンド（7ファイル）
+- [x] `V10__add_device_type_to_pc_assets.sql`: pc_assets に device_type カラム追加（device_name の直後、NULL 許容）
+- [x] `PcAsset.java`: deviceType フィールド追加
+- [x] `AssetCreateRequest.java`: deviceType フィールド追加（任意）
+- [x] `AssetUpdateRequest.java`: deviceType フィールド追加（任意）
+- [x] `AssetResponse.java`: deviceType フィールド追加
+- [x] `PcAssetMapper.xml`: resultMap・findAll・findById の SELECT、INSERT、UPDATE に device_type を追加
+- [x] `PcAssetService.java`: create() / update() で deviceType をセット（空文字は null 変換）
+
+#### フロントエンド（3ファイル）
+- [x] `types/index.ts`: PcAsset に deviceType 追加、AssetCreateRequest / AssetUpdateRequest に deviceType? 追加
+- [x] `WEB_AST0101_AssetListView.vue`: saveAsset() で deviceType を送信
+- [x] `WEB_AST0102_AssetDetailView.vue`: openEdit() で登録済み deviceType を初期表示、saveAsset() で送信
+
+#### ビルド確認
+- Backend compileJava: BUILD SUCCESSFUL
+- Frontend 型チェック: エラーなし
 
 ---
 

@@ -1,10 +1,11 @@
 package com.company.pcmgmt.api.controller;
 
-import com.company.pcmgmt.api.dto.request.AssetCreateRequest;
-import com.company.pcmgmt.api.dto.response.AssetResponse;
+import com.company.pcmgmt.api.controller.asset.PcAssetController;
+import com.company.pcmgmt.api.dto.request.asset.AssetCreateRequest;
+import com.company.pcmgmt.api.dto.response.asset.AssetResponse;
 import com.company.pcmgmt.api.dto.response.PageResponse;
 import com.company.pcmgmt.exception.ResourceNotFoundException;
-import com.company.pcmgmt.service.PcAssetService;
+import com.company.pcmgmt.service.asset.PcAssetService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;

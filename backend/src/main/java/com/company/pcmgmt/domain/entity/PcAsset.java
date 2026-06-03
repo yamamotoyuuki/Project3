@@ -24,6 +24,13 @@ public class PcAsset {
     private String deviceName;
 
     /**
+     * 機器種別（任意）
+     * <p>code_master テーブルの DEVICE_TYPE コード値を格納する。
+     * 例: "LAPTOP"（ノートPC）、"DESKTOP"（デスクトップPC）、"DISPLAY"（モニター）</p>
+     */
+    private String deviceType;
+
+    /**
      * 取得区分
      * <ul>
      *   <li>PURCHASE: 購入品</li>

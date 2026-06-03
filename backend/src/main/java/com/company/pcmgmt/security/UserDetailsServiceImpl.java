@@ -1,7 +1,7 @@
 package com.company.pcmgmt.security;
 
 import com.company.pcmgmt.domain.entity.User;
-import com.company.pcmgmt.domain.mapper.UserMapper;
+import com.company.pcmgmt.domain.mapper.user.UserMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;

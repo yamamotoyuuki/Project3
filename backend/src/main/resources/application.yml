@@ -19,7 +19,7 @@ spring:
     encoding: UTF-8
 
 mybatis:
-  mapper-locations: classpath:com/company/pcmgmt/domain/mapper/*.xml
+  mapper-locations: classpath:com/company/pcmgmt/domain/mapper/**/*.xml
   type-aliases-package: com.company.pcmgmt.domain.entity
   configuration:
     map-underscore-to-camel-case: true

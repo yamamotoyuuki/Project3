@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!--
+    コードマスタ マッパー XML
+    名前空間: com.company.pcmgmt.domain.mapper.common.CodeMasterMapper
+    対象テーブル: code_master
+-->
+<mapper namespace="com.company.pcmgmt.domain.mapper.common.CodeMasterMapper">
+
+    <!--
+        結果マップ: CodeValueResponse
+        code_value・code_label カラムを DTO フィールドにマッピングする。
+    -->
+    <resultMap id="CodeValueResponseMap"
+               type="com.company.pcmgmt.api.dto.response.common.CodeValueResponse">
+        <!-- コード値: 他テーブルのカラムに格納される定数 (例: "IN_USE", "LAPTOP") -->
+        <result property="codeValue" column="code_value"/>
+        <!-- 表示ラベル: 画面に表示する日本語名称 (例: "使用中", "ノートPC（Laptop）") -->
+        <result property="codeLabel" column="code_label"/>
+    </resultMap>
+
+    <!--
+        findActiveByCodeType
+        指定したコード区分の有効なコード値を sort_order 昇順で取得する。
+
+        絞り込み条件:
+          - code_type = #{codeType}   : コード区分キーで絞り込み
+          - is_active = 1             : 有効レコードのみ取得（無効コードは UI に表示しない）
+          - ORDER BY sort_order ASC   : code_master に定義した表示順で並べ替え
+    -->
+    <select id="findActiveByCodeType" resultMap="CodeValueResponseMap">
+        SELECT
+            code_value,   /* 他テーブルに格納されるコード定数 */
+            code_label    /* 画面に表示する日本語ラベル */
+        FROM
+            code_master
+        WHERE
+            code_type = #{codeType}   /* コード区分キーで絞り込み */
+            AND is_active = 1         /* 有効レコードのみ取得 */
+        ORDER BY
+            sort_order ASC            /* 表示順の昇順 */
+    </select>
+
+</mapper>

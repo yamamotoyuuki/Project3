@@ -37,4 +37,10 @@ public final class ApiConstants {
 
     /** システムユーザー管理エンドポイント（管理者専用） */
     public static final String USERS_PATH = API_BASE + "/users";
+
+    /**
+     * Common utility endpoint (code master, shared lookups)
+     * Usage: GET /api/v1/common/codes/{codeType}
+     */
+    public static final String COMMON_PATH = API_BASE + "/common";
 }

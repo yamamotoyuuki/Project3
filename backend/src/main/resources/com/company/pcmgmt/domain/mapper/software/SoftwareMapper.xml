@@ -1,0 +1,109 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.company.pcmgmt.domain.mapper.software.SoftwareMapper">
+
+    <resultMap id="SoftwareResponseMap" type="com.company.pcmgmt.api.dto.response.software.SoftwareResponse">
+        <id     property="id"             column="id"/>
+        <result property="softwareName"   column="software_name"/>
+        <result property="publisher"      column="publisher"/>
+        <result property="licenseType"    column="license_type"/>
+        <result property="purchasedCount" column="purchased_count"/>
+        <result property="installedCount" column="installed_count"/>
+        <result property="note"           column="note"/>
+        <result property="createdAt"      column="created_at"/>
+        <result property="updatedAt"      column="updated_at"/>
+    </resultMap>
+
+    <!-- インストール台数を集計して取得 -->
+    <sql id="selectSoftwareBase">
+        SELECT
+            m.id,
+            m.software_name,
+            m.publisher,
+            m.license_type,
+            m.purchased_count,
+            m.note,
+            m.created_at,
+            m.updated_at,
+            COUNT(s.id) AS installed_count
+        FROM software_master m
+        LEFT JOIN pc_software_info s
+            ON s.software_name = m.software_name
+    </sql>
+
+    <sql id="softwareSearchHaving">
+        <if test="req.keyword != null and req.keyword != ''">
+            HAVING m.software_name LIKE CONCAT('%', #{req.keyword}, '%')
+               OR m.publisher      LIKE CONCAT('%', #{req.keyword}, '%')
+        </if>
+        <if test="req.overLimit != null and req.overLimit == true">
+            HAVING COUNT(s.id) > m.purchased_count AND m.purchased_count > 0
+        </if>
+    </sql>
+
+    <select id="findAll" resultMap="SoftwareResponseMap">
+        <include refid="selectSoftwareBase"/>
+        GROUP BY m.id
+        <if test="req.keyword != null and req.keyword != ''">
+            HAVING (m.software_name LIKE CONCAT('%', #{req.keyword}, '%')
+               OR m.publisher LIKE CONCAT('%', #{req.keyword}, '%'))
+        </if>
+        <if test="req.overLimit != null and req.overLimit == true">
+        <!-- overLimitフィルタは keyword と排他的に適用 -->
+        </if>
+        ORDER BY m.software_name ASC
+        LIMIT #{req.size} OFFSET #{req.offset}
+    </select>
+
+    <select id="countAll" resultType="long">
+        SELECT COUNT(*) FROM (
+            SELECT m.id FROM software_master m
+            LEFT JOIN pc_software_info s ON s.software_name = m.software_name
+            GROUP BY m.id
+            <if test="req.keyword != null and req.keyword != ''">
+                HAVING (m.software_name LIKE CONCAT('%', #{req.keyword}, '%')
+                   OR m.publisher LIKE CONCAT('%', #{req.keyword}, '%'))
+            </if>
+        ) sub
+    </select>
+
+    <select id="findById" resultMap="SoftwareResponseMap">
+        <include refid="selectSoftwareBase"/>
+        WHERE m.id = #{id}
+        GROUP BY m.id
+    </select>
+
+    <select id="findRawById" resultType="com.company.pcmgmt.domain.entity.SoftwareMaster">
+        SELECT * FROM software_master WHERE id = #{id}
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO software_master (software_name, publisher, license_type, purchased_count, note)
+        VALUES (#{softwareName}, #{publisher}, #{licenseType}, #{purchasedCount}, #{note})
+    </insert>
+
+    <update id="update">
+        UPDATE software_master SET
+            software_name   = #{softwareName},
+            publisher       = #{publisher},
+            license_type    = #{licenseType},
+            purchased_count = #{purchasedCount},
+            note            = #{note},
+            updated_at      = CURRENT_TIMESTAMP
+        WHERE id = #{id}
+    </update>
+
+    <select id="countOverLimit" resultType="long">
+        SELECT COUNT(*) FROM (
+            SELECT m.id
+            FROM software_master m
+            JOIN pc_software_info s ON s.software_name = m.software_name
+            WHERE m.purchased_count > 0
+            GROUP BY m.id
+            HAVING COUNT(s.id) > m.purchased_count
+        ) sub
+    </select>
+
+</mapper>

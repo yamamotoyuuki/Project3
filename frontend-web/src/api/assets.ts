@@ -6,6 +6,7 @@ import type {
   AssetSearchParams,
   AssetCreateRequest,
   AssetUpdateRequest,
+  InstalledSoftware,
 } from '@/types'
 
 export const assetsApi = {
@@ -46,6 +47,16 @@ export const assetsApi = {
    */
   delete(id: number): Promise<ApiResponse<void>> {
     return apiClient.delete<ApiResponse<void>>(`/assets/${id}`)
+      .then(res => res.data)
+  },
+
+  /**
+   * インストール済みソフトウェア一覧取得
+   * PC資産の agent_number に紐付くソフトウェアをソフトウェア名昇順で返す。
+   * エージェント未導入の場合は空配列。
+   */
+  getSoftware(id: number): Promise<ApiResponse<InstalledSoftware[]>> {
+    return apiClient.get<ApiResponse<InstalledSoftware[]>>(`/assets/${id}/software`)
       .then(res => res.data)
   },
 }

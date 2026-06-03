@@ -3,10 +3,25 @@
  * -----------------------------------------------
  * PC管理エージェント - コアロジック
  *
+ * 機能ID対応表:
+ *   AGT_PCI0101 : PC情報収集 (collect_pc_info)
+ *   AGT_PCI0102 : PC情報送信 (send_report)
+ *   AGT_CFG0101 : 設定 (load_config, fetch_asset_acquisition_type)
+ *   AGT_CFG0102 : 新規登録 (register_agent, save_agent_number, load_agent_number)
+ *   AGT_WUP0101 : WindowsUpdate適用判定 (collect_windows_update)
+ *   CMN_AGT0101 : エージェント初回登録 -> POST /agent/register
+ *   CMN_AGT0102 : 資産情報取得       -> GET  /agent/asset-info
+ *   CMN_AGT0103 : PC情報レポート送信  -> POST /agent/report
+ *
  * Tauri コマンドとして以下の機能を提供する:
- *   - load_config    : application.yml からAPI設定を読み込む
- *   - collect_pc_info: sysinfo クレートでPC情報を収集
- *   - send_report    : 収集情報をバックエンド API へ POST 送信
+ *   - load_config             : application.yml からAPI設定を読み込む (AGT_CFG0101)
+ *   - collect_pc_info         : sysinfo クレートでPC情報を収集 (AGT_PCI0101)
+ *   - send_report             : 収集情報をバックエンド API へ POST 送信 (AGT_PCI0102)
+ *   - register_agent          : エージェントを初回登録 (AGT_CFG0102)
+ *   - load_agent_number       : エージェント番号をファイルから読み込む (AGT_CFG0102)
+ *   - save_agent_number       : エージェント番号をファイルに保存 (AGT_CFG0102)
+ *   - fetch_asset_acquisition_type: 取得区分をバックエンドから取得 (AGT_CFG0101)
+ *   - collect_windows_update  : WindowsUpdate適用判定 (AGT_WUP0101)
  *
  * 収集情報:
  *   - CPU（モデル名・コア数）
@@ -109,10 +124,33 @@ pub struct NetworkInfo {
 /// インストール済みソフトウェア情報を保持する構造体
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SoftwareInfo {
-    /// ソフトウェア名
+    /// ソフトウェア名（例: "Git", "Microsoft Office 2021"）
     pub name: String,
-    /// バージョン文字列（取得できない場合は空文字）
+    /// バージョン文字列（例: "2.48.1"、取得できない場合は空文字）
     pub version: String,
+    /// 発行元・パブリッシャー名（例: "The Git Development Community"）
+    /// Windows: レジストリの Publisher 値
+    /// macOS / Linux: 取得不可のため空文字
+    pub publisher: String,
+}
+
+/// GET /api/v1/agent/asset-info のレスポンス（data フィールド）にマッピングする構造体
+///
+/// バックエンドの AssetInfoResponse DTO に対応する。
+/// - acquisitionType: 取得区分（"PURCHASE" / "RENTAL" / null）
+/// - returned       : 返却済みフラグ（RENTAL かつ返却済みの場合に true）
+///
+/// `rename_all = "camelCase"` により Tauri IPC レスポンスが camelCase になるため、
+/// TypeScript 側で `assetInfo.acquisitionType` / `assetInfo.isReturned` として参照できる。
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct AssetInfo {
+    /// 取得区分（"PURCHASE" / "RENTAL" / null = 未設定）
+    pub acquisition_type: Option<String>,
+    /// 返却済みフラグ（RENTAL かつ返却済みの場合に true）
+    /// バックエンドの JSON キーは "returned"（Lombok の isReturned() getter から生成）
+    #[serde(rename(deserialize = "returned"))]
+    pub is_returned: bool,
 }
 
 /// バックエンドに送信するレポート全体を表す構造体
@@ -345,15 +383,14 @@ async fn send_report(api_url: String, report: AgentReport) -> Result<String, Str
 // Tauri コマンド: 取得区分の取得
 // =====================================================
 
-/// エージェント起動時にバックエンドから PC 資産の取得区分（購入/レンタル）を取得する。
+/// エージェント起動時・「情報を取得」ボタン押下時にバックエンドからPC資産情報を取得する。
 ///
-/// バックエンドに取得区分が設定済みの場合は "PURCHASE" または "RENTAL" を返す。
-/// 対応する PC 資産が見つからない、または未設定の場合は `None` を返す。
-/// エラー時（バックエンド未起動等）も `None` を返し、設定欄を活性化する。
+/// 取得区分（PURCHASE / RENTAL）に加え、RENTAL の場合は返却済みかどうかも返す。
+/// エラー時（バックエンド未起動等）は `None` を返し、設定欄を活性化する。
 ///
 /// 検索順序（バックエンド側）:
 ///   1. エージェント番号で検索（2回目以降・pc_assets.agent_number が設定済みの場合）
-///   2. ホスト名でフォールバック検索（管理者が先に資産登録した場合など、agent_number 未紐付け時）
+///   2. ホスト名でフォールバック検索（管理者が先に資産登録した場合など）
 ///
 /// # Arguments
 /// * `api_url`      - バックエンドの API ベース URL（例: "http://localhost:8080/api/v1"）
@@ -361,14 +398,15 @@ async fn send_report(api_url: String, report: AgentReport) -> Result<String, Str
 /// * `hostname`     - エージェントが動作する PC のホスト名（フォールバック検索に使用）
 ///
 /// # Returns
-/// バックエンドに設定済みの場合は `Ok(Some("PURCHASE"))` / `Ok(Some("RENTAL"))`、
-/// 未設定・未登録・エラーの場合は `Ok(None)` を返す。
+/// 成功時は `Ok(Some(AssetInfo))`、未登録・エラーの場合は `Ok(None)` を返す。
+/// AssetInfo.acquisition_type: "PURCHASE" / "RENTAL" / None（未設定）
+/// AssetInfo.is_returned     : true = 返却済み（RENTAL のみ）、false = 未返却または購入品
 #[tauri::command]
 async fn fetch_asset_acquisition_type(
     api_url: String,
     agent_number: String,
     hostname: String,
-) -> Result<Option<String>, String> {
+) -> Result<Option<AssetInfo>, String> {
     let client = reqwest::Client::new();
     // URL を組み立てる（agentNumber + hostname の両方をクエリパラメータで送信）
     let url = format!(
@@ -385,14 +423,31 @@ async fn fetch_asset_acquisition_type(
         .map_err(|e| format!("取得エラー: {}", e))?;
 
     if response.status().is_success() {
-        // レスポンス例: {"success": true, "data": "RENTAL"} または {"success": true, "data": null}
+        // レスポンス例:
+        //   {"success": true, "data": {"acquisitionType": "RENTAL", "returned": true}}
+        //   {"success": true, "data": {"acquisitionType": null, "returned": false}}
         let json: serde_json::Value = response
             .json()
             .await
             .map_err(|e| format!("レスポンス解析エラー: {}", e))?;
 
-        // "data" フィールドが文字列の場合のみ返す（null の場合は None）
-        Ok(json["data"].as_str().map(|s| s.to_string()))
+        let data = &json["data"];
+
+        // data が null またはオブジェクトでない場合は None を返す
+        if data.is_null() || !data.is_object() {
+            return Ok(None);
+        }
+
+        // acquisitionType フィールドを取得する（null の場合は None）
+        let acquisition_type = data["acquisitionType"].as_str().map(|s| s.to_string());
+
+        // returned フィールドを取得する（バックエンドの Lombok isReturned() → "returned"）
+        let is_returned = data["returned"].as_bool().unwrap_or(false);
+
+        Ok(Some(AssetInfo {
+            acquisition_type,
+            is_returned,
+        }))
     } else {
         // 取得失敗時（資産未登録等）は None を返して設定欄を活性化する
         Ok(None)
@@ -617,23 +672,131 @@ fn collect_software_info() -> Vec<SoftwareInfo> {
     }
 }
 
-/// Windows: wmic コマンドでインストール済みソフトウェアを取得する
+/// Windows: レジストリ（HKLM + HKCU Uninstall）と UserAssist からソフトウェアを取得する
+///
+/// 3 つのソースを組み合わせて網羅的に取得する:
+///   1. HKLM Uninstall (64bit / 32bit): 管理者インストールアプリ
+///   2. HKCU Uninstall               : ユーザーインストールアプリ（Postman / VS Code 等）
+///   3. UserAssist                   : 上記レジストリに登録されていないポータブルアプリ
+///                                    （一度でも実行されていれば UserAssist に記録される）
+///
+/// UserAssist キーは ROT-13 でエンコードされているため、デコードして実行ファイルパスを取得する。
+/// システムパス・一時フォルダ・存在しないファイルは除外する。
+/// レジストリ取得済みアプリと名前が重複する場合は UserAssist 側をスキップして重複を防ぐ。
+/// 最終的に全ソースのアプリを結合し、アプリ名昇順・重複除去して CSV 出力する。
 #[cfg(target_os = "windows")]
 fn collect_software_windows() -> Vec<SoftwareInfo> {
-    // PowerShell 経由でインストール済みプログラム情報を取得（wmic は非推奨のため Get-Package を使用）
+    let ps_script = r#"
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
+
+# ---- Step 1: Registry (HKLM 64bit + 32bit + HKCU) ----
+# HKLM : 管理者権限でインストールされたアプリ（全ユーザー共通）
+# HKCU : ユーザー権限でインストールされたアプリ（Postman / VS Code ユーザー版 等）
+$regPaths = @(
+    'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*',
+    'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*',
+    'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*'
+)
+$regApps = Get-ItemProperty $regPaths -ErrorAction SilentlyContinue |
+    Where-Object { $_.DisplayName -and $_.DisplayName.Trim() -ne '' } |
+    ForEach-Object {
+        [PSCustomObject]@{
+            Name      = $_.DisplayName.Trim()
+            Version   = if ($_.DisplayVersion) { $_.DisplayVersion } else { '' }
+            Publisher = if ($_.Publisher)       { $_.Publisher }       else { '' }
+        }
+    }
+
+# ---- Step 2: UserAssist (ROT-13 decoded exe paths) ----
+# UserAssist はユーザーがダブルクリック・スタートメニュー等で起動した
+# 実行ファイルのパスを ROT-13 エンコードして記録するレジストリキー。
+# レジストリ未登録のポータブルアプリを起動履歴から検出するために使用する。
+function ConvertFrom-ROT13([string]$s) {
+    -join ($s.ToCharArray() | ForEach-Object {
+        if ($_ -match '[a-zA-Z]') {
+            $b = if ($_ -cmatch '[a-z]') { 97 } else { 65 }
+            [char](([int][char]$_ - $b + 13) % 26 + $b)
+        } else { $_ }
+    })
+}
+
+# EXE 追跡用 GUID と ショートカット(.lnk)追跡用 GUID
+$uaGuids = @(
+    '{CEBFF5CD-ACE2-4F4F-9178-9926F41749EA}',
+    '{F4E57C4B-2036-45F0-A9AB-443BCFE33D9F}'
+)
+
+# レジストリ取得済みのアプリ名を HashSet に格納して重複チェックに使用する
+$regNameSet = [System.Collections.Generic.HashSet[string]]::new(
+    [System.StringComparer]::OrdinalIgnoreCase
+)
+$regApps | ForEach-Object { $null = $regNameSet.Add($_.Name) }
+
+# UserAssist から取得したアプリを格納するリストと重複チェック用 HashSet
+$uaResults = [System.Collections.Generic.List[PSCustomObject]]::new()
+$uaNameSet  = [System.Collections.Generic.HashSet[string]]::new(
+    [System.StringComparer]::OrdinalIgnoreCase
+)
+
+foreach ($guid in $uaGuids) {
+    $keyPath = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\UserAssist\$guid\Count"
+    if (-not (Test-Path $keyPath)) { continue }
+
+    (Get-Item $keyPath).Property | ForEach-Object {
+        # ROT-13 デコードして実行ファイルのパスを復元する
+        $decoded = ConvertFrom-ROT13 $_
+
+        # .exe ファイルのみ対象（ショートカット GUID の場合 .lnk も処理されるが .exe で絞る）
+        if ($decoded -notmatch '\.exe$') { return }
+
+        # システムパス・一時フォルダは除外する（OS コンポーネントを省く）
+        if ($decoded -match '\\Windows\\|\\System32\\|\\SysWOW64\\|\\Temp\\|\\WindowsApps\\') { return }
+
+        # ファイルが実際に存在する場合のみ処理する（削除済みアプリ・USB アプリ等を除外）
+        if (-not (Test-Path $decoded -PathType Leaf -ErrorAction SilentlyContinue)) { return }
+
+        # 実行ファイルの VersionInfo からアプリ名・バージョン・発行元を取得する
+        $vi        = (Get-Item $decoded -ErrorAction SilentlyContinue).VersionInfo
+        $appName   = if ($vi.ProductName -and $vi.ProductName.Trim()) {
+                         $vi.ProductName.Trim()
+                     } else {
+                         [IO.Path]::GetFileNameWithoutExtension($decoded)
+                     }
+        $version   = if ($vi.ProductVersion) { $vi.ProductVersion } else { '' }
+        $publisher = if ($vi.CompanyName)    { $vi.CompanyName }    else { '' }
+
+        # レジストリ取得済みのアプリ名と重複する場合はスキップする
+        if ($regNameSet.Contains($appName)) { return }
+        # UserAssist 内の重複（EXE GUID と LNK GUID の両方に同一アプリが存在するケース）をスキップ
+        if ($uaNameSet.Contains($appName))  { return }
+
+        $null = $uaNameSet.Add($appName)
+        $uaResults.Add([PSCustomObject]@{
+            Name      = $appName
+            Version   = $version
+            Publisher = $publisher
+        })
+    }
+}
+
+# ---- Step 3: 結合・ソート・CSV 出力 ----
+# レジストリアプリ + UserAssist アプリを結合してアプリ名昇順・重複除去で出力する
+@($regApps) + @($uaResults) |
+    Where-Object { $_.Name } |
+    Sort-Object Name -Unique |
+    Select-Object Name, Version, Publisher |
+    ConvertTo-Csv -NoTypeInformation
+"#;
+
     let output = std::process::Command::new("powershell")
-        .args([
-            "-NoProfile",
-            "-NonInteractive",
-            "-Command",
-            "Get-Package | Select-Object Name,Version | ConvertTo-Csv -NoTypeInformation",
-        ])
+        .args(["-NoProfile", "-NonInteractive", "-Command", ps_script])
         .output();
 
     match output {
         Ok(out) if out.status.success() => {
             let text = String::from_utf8_lossy(&out.stdout);
-            parse_csv_software(&text)
+            parse_registry_software(&text)
         }
         _ => vec![], // コマンド失敗時は空リストを返す
     }
@@ -656,11 +819,12 @@ fn collect_software_macos() -> Vec<SoftwareInfo> {
                 .unwrap_or_default()
                 .into_iter()
                 .filter_map(|app| {
-                    let name    = app["_name"].as_str()?.to_string();
-                    let version = app["version"].as_str().unwrap_or("").to_string();
-                    Some(SoftwareInfo { name, version })
+                    let name      = app["_name"].as_str()?.to_string();
+                    let version   = app["version"].as_str().unwrap_or("").to_string();
+                    // macOS の system_profiler は発行元を提供しないため空文字を設定する
+                    let publisher = String::new();
+                    Some(SoftwareInfo { name, version, publisher })
                 })
-                .take(200) // 最大 200 件（データ量制限）
                 .collect()
         }
         _ => vec![],
@@ -685,14 +849,14 @@ fn collect_software_linux() -> Vec<SoftwareInfo> {
                     let parts: Vec<&str> = line.split_whitespace().collect();
                     if parts.len() >= 3 {
                         Some(SoftwareInfo {
-                            name:    parts[1].to_string(),
-                            version: parts[2].to_string(),
+                            name:      parts[1].to_string(),
+                            version:   parts[2].to_string(),
+                            publisher: String::new(), // dpkg は発行元を提供しない
                         })
                     } else {
                         None
                     }
                 })
-                .take(200)
                 .collect();
         }
     }
@@ -708,37 +872,85 @@ fn collect_software_linux() -> Vec<SoftwareInfo> {
             text.lines()
                 .filter_map(|line| {
                     let mut parts = line.splitn(2, ',');
-                    let name    = parts.next()?.to_string();
-                    let version = parts.next().unwrap_or("").to_string();
-                    Some(SoftwareInfo { name, version })
+                    let name      = parts.next()?.to_string();
+                    let version   = parts.next().unwrap_or("").to_string();
+                    let publisher = String::new(); // rpm は発行元を提供しない
+                    Some(SoftwareInfo { name, version, publisher })
                 })
-                .take(200)
                 .collect()
         }
         _ => vec![],
     }
 }
 
-/// PowerShell の ConvertTo-Csv 出力（ヘッダー付き CSV）を SoftwareInfo の Vec に変換する
+/// レジストリから取得した CSV（DisplayName, DisplayVersion, Publisher の 3 列）を
+/// SoftwareInfo の Vec に変換する。
 ///
-/// 1 行目: ヘッダー行（スキップ）
-/// 2 行目以降: "Name","Version" 形式のデータ行
+/// PowerShell ConvertTo-Csv の出力形式:
+///   "DisplayName","DisplayVersion","Publisher"
+///   "Git","2.48.1","The Git Development Community"
+///   "App With, Comma","1.0","Publisher Corp"   ← フィールド内カンマも正しく処理する
+///
+/// フィールド内のカンマ・"" でエスケープされたダブルクォートは
+/// parse_csv_fields で処理する。
 #[cfg(target_os = "windows")]
-fn parse_csv_software(csv_text: &str) -> Vec<SoftwareInfo> {
+fn parse_registry_software(csv_text: &str) -> Vec<SoftwareInfo> {
     csv_text
         .lines()
-        .skip(1) // ヘッダー行をスキップ
+        .skip(1) // ヘッダー行（"DisplayName","DisplayVersion","Publisher"）をスキップ
         .filter_map(|line| {
-            // ダブルクォートと改行を除去してカンマで分割
-            let clean = line.replace('"', "");
-            let mut parts = clean.splitn(2, ',');
-            let name    = parts.next()?.trim().to_string();
-            let version = parts.next().unwrap_or("").trim().to_string();
+            let line = line.trim();
+            if line.is_empty() { return None; }
+
+            let fields    = parse_csv_fields(line);
+            let name      = fields.get(0).cloned().unwrap_or_default();
             if name.is_empty() { return None; }
-            Some(SoftwareInfo { name, version })
+
+            let version   = fields.get(1).cloned().unwrap_or_default();
+            let publisher = fields.get(2).cloned().unwrap_or_default();
+
+            Some(SoftwareInfo { name, version, publisher })
         })
-        .take(200) // 最大 200 件（データ量・通信量の制限）
         .collect()
+}
+
+/// CSV の 1 行をフィールドの Vec に分解する（ダブルクォート・埋め込みカンマ対応）
+///
+/// PowerShell ConvertTo-Csv が出力するクォート付き CSV 形式に対応する。
+/// - フィールドはダブルクォートで囲まれる: `"value"`
+/// - フィールド内のダブルクォートは `""` でエスケープされる: `"He said ""hello"""`
+/// - フィールド内のカンマはクォートで保護される: `"Last, First"`
+#[cfg(target_os = "windows")]
+fn parse_csv_fields(line: &str) -> Vec<String> {
+    let mut fields    = Vec::new();
+    let mut current   = String::new();
+    let mut in_quotes = false;
+    let chars: Vec<char> = line.chars().collect();
+    let mut i = 0;
+
+    while i < chars.len() {
+        match chars[i] {
+            '"' if in_quotes && i + 1 < chars.len() && chars[i + 1] == '"' => {
+                // "" → エスケープされたダブルクォートとして " を1つ追加する
+                current.push('"');
+                i += 1; // 次の " をスキップする
+            }
+            '"' => {
+                // クォートの開始・終了を切り替える
+                in_quotes = !in_quotes;
+            }
+            ',' if !in_quotes => {
+                // クォート外のカンマ → フィールド区切り
+                fields.push(current.trim().to_string());
+                current.clear();
+            }
+            c => current.push(c),
+        }
+        i += 1;
+    }
+    // 最後のフィールドを追加する（末尾カンマなし形式にも対応）
+    fields.push(current.trim().to_string());
+    fields
 }
 
 /// f64 値を小数点第1位で丸める（表示用）

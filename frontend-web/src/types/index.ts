@@ -13,6 +13,16 @@
 // =====================================================
 
 /**
+ * コードマスタ値
+ * GET /api/v1/common/codes/{codeType} のレスポンスアイテム型。
+ * ドロップダウンリストの1選択肢（コード値と表示ラベルのペア）を表す。
+ */
+export interface CodeValue {
+  codeValue: string  // コード値（他テーブルに格納される定数。例: "PURCHASE", "IN_USE"）
+  codeLabel: string  // 画面に表示する日本語ラベル（例: "購入", "使用中"）
+}
+
+/**
  * 汎用 API レスポンスラッパー
  * バックエンドの全エンドポイントはこの形式で返却する。
  * @template T - レスポンスボディの型（data フィールド）
@@ -120,6 +130,7 @@ export interface PcAsset {
   id:                   number          // 内部 ID（主キー）
   assetNumber:          string          // 資産番号（社内管理番号）
   deviceName:           string          // 機器名称
+  deviceType:           string | null   // 機器種別（code_master DEVICE_TYPE のコード値。未設定は null）
   acquisitionType:      AcquisitionType // 取得区分（購入 / レンタル）
   maker:                string | null   // メーカー名
   modelNumber:          string | null   // 型番
@@ -139,18 +150,20 @@ export interface PcAsset {
 
 /** PC 資産一覧の検索パラメータ */
 export interface AssetSearchParams {
-  page?:            number             // ページ番号（0 始まり）
-  size?:            number             // 1 ページあたりの件数
-  status?:          PcStatus | ''     // ステータスフィルタ（'' = 全件）
+  page?:            number               // ページ番号（0 始まり）
+  size?:            number               // 1 ページあたりの件数
+  status?:          PcStatus | ''        // ステータスフィルタ（'' = 全件）
   acquisitionType?: AcquisitionType | '' // 取得区分フィルタ（'' = 全件）
-  keyword?:         string             // フリーワード検索（資産番号・機器名等）
-  location?:        string             // 設置場所フィルタ
+  deviceType?:      string               // 機器種別フィルタ（'' = 全件。DEVICE_TYPE コード値）
+  keyword?:         string               // フリーワード検索（資産番号・機器名等）
+  location?:        string               // 設置場所フィルタ
 }
 
 /** PC 資産新規登録リクエスト */
 export interface AssetCreateRequest {
   assetNumber:       string           // 資産番号（必須）
   deviceName:        string           // 機器名称（必須）
+  deviceType?:       string           // 機器種別（任意。code_master DEVICE_TYPE のコード値）
   acquisitionType:   AcquisitionType  // 取得区分（必須）
   maker?:            string           // メーカー名
   modelNumber?:      string           // 型番
@@ -165,6 +178,7 @@ export interface AssetCreateRequest {
 /** PC 資産更新リクエスト */
 export interface AssetUpdateRequest {
   deviceName:        string           // 機器名称（必須）
+  deviceType?:       string           // 機器種別（任意。code_master DEVICE_TYPE のコード値）
   acquisitionType:   AcquisitionType  // 取得区分（必須）
   maker?:            string           // メーカー名
   modelNumber?:      string           // 型番
@@ -296,6 +310,7 @@ export interface PcRental {
   deviceName:       string        // 機器名称（表示用）
   rentalVendorId:   number        // レンタル業者 ID
   vendorName:       string        // 業者名（表示用）
+  hostname:         string | null // PC のホスト名（pc_assets.hostname から取得）
   contractNumber:   string | null // 契約番号
   rentalStartDate:  string        // レンタル開始日（YYYY-MM-DD）
   rentalEndDate:    string        // レンタル終了日（YYYY-MM-DD）
@@ -336,6 +351,19 @@ export interface RentalCreateRequest {
   contractFilePath?: string // 契約書ファイルパス
 }
 
+/**
+ * レンタル契約更新リクエスト
+ * PUT /api/v1/rentals/{id} のリクエストボディ。
+ * PC 資産の変更は不可のため pcAssetId は含めない。
+ */
+export interface RentalUpdateRequest {
+  rentalVendorId:  number         // レンタルベンダー ID（必須）
+  contractNumber:  string         // 契約番号（空文字で未設定）
+  rentalStartDate: string         // 開始日（YYYY-MM-DD、必須）
+  rentalEndDate:   string         // 終了日（YYYY-MM-DD、必須）
+  monthlyFee:      number | null  // 月額費用（円、null = 未設定）
+}
+
 /** レンタル業者登録リクエスト */
 export interface RentalVendorCreateRequest {
   companyName:  string  // 業者会社名（必須）
@@ -344,6 +372,17 @@ export interface RentalVendorCreateRequest {
   email?:       string  // メールアドレス
   address?:     string  // 住所
   note?:        string  // 備考
+}
+
+/**
+ * インストール済みソフトウェア エンティティ
+ * GET /api/v1/assets/{id}/software のレスポンスアイテム型。
+ */
+export interface InstalledSoftware {
+  id:           number        // レコードID
+  softwareName: string        // ソフトウェア名
+  version:      string | null // バージョン（未取得の場合は null）
+  publisher:    string | null // 発行元（未取得の場合は null）
 }
 
 /** レンタル一覧の検索パラメータ */
