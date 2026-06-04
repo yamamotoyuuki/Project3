@@ -33,6 +33,7 @@
     <!-- 検索条件フラグメント -->
     <sql id="searchWhere">
         <where>
+            <!-- キーワード検索（資産番号 / 端末名 / シリアル番号 / ホスト名） -->
             <if test="req.keyword != null and req.keyword != ''">
                 AND (
                     a.asset_number  LIKE CONCAT('%', #{req.keyword}, '%')
@@ -41,15 +42,28 @@
                     OR a.hostname       LIKE CONCAT('%', #{req.keyword}, '%')
                 )
             </if>
-            <if test="req.status != null and req.status != ''">
-                AND a.status = #{req.status}
+            <!-- ステータス複数フィルタ（チェック済み項目を IN で絞り込む） -->
+            <if test="req.statusList != null and req.statusList.size() > 0">
+                AND a.status IN
+                <foreach collection="req.statusList" item="s" open="(" separator="," close=")">
+                    #{s}
+                </foreach>
             </if>
-            <if test="req.acquisitionType != null and req.acquisitionType != ''">
-                AND a.acquisition_type = #{req.acquisitionType}
+            <!-- 取得区分複数フィルタ（チェック済み項目を IN で絞り込む） -->
+            <if test="req.acquisitionTypeList != null and req.acquisitionTypeList.size() > 0">
+                AND a.acquisition_type IN
+                <foreach collection="req.acquisitionTypeList" item="t" open="(" separator="," close=")">
+                    #{t}
+                </foreach>
             </if>
-            <if test="req.deviceType != null and req.deviceType != ''">
-                AND a.device_type = #{req.deviceType}
+            <!-- 機器種別複数フィルタ（チェック済み項目を IN で絞り込む） -->
+            <if test="req.deviceTypeList != null and req.deviceTypeList.size() > 0">
+                AND a.device_type IN
+                <foreach collection="req.deviceTypeList" item="d" open="(" separator="," close=")">
+                    #{d}
+                </foreach>
             </if>
+            <!-- 設置場所フィルタ（部分一致） -->
             <if test="req.location != null and req.location != ''">
                 AND a.location LIKE CONCAT('%', #{req.location}, '%')
             </if>

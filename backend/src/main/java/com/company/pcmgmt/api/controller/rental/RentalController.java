@@ -1,11 +1,14 @@
 package com.company.pcmgmt.api.controller.rental;
 
+import com.company.pcmgmt.annotation.Loggable;
 import com.company.pcmgmt.api.dto.request.rental.RentalCreateRequest;
+import com.company.pcmgmt.api.dto.request.rental.RentalReturnRequest;
 import com.company.pcmgmt.api.dto.request.rental.RentalSearchRequest;
 import com.company.pcmgmt.api.dto.request.rental.RentalUpdateRequest;
 import com.company.pcmgmt.api.dto.request.rental.RentalVendorCreateRequest;
 import com.company.pcmgmt.api.dto.response.ApiResponse;
 import com.company.pcmgmt.api.dto.response.PageResponse;
+import com.company.pcmgmt.api.dto.response.rental.RentalHistoryResponse;
 import com.company.pcmgmt.api.dto.response.rental.RentalResponse;
 import com.company.pcmgmt.api.dto.response.rental.RentalVendorResponse;
 import com.company.pcmgmt.service.rental.RentalService;
@@ -65,6 +68,21 @@ public class RentalController {
     }
 
     /**
+     * 指定レンタル契約の変更履歴一覧を取得する
+     *
+     * <p>エンドポイント: {@code GET /api/v1/rentals/{id}/histories}</p>
+     * <p>認証: JWT 認証必須</p>
+     *
+     * @param id レンタル契約ID（パスパラメータ）
+     * @return 変更履歴レスポンスのリスト（新しい順）
+     */
+    @GetMapping("/api/v1/rentals/{id}/histories")
+    public ResponseEntity<ApiResponse<List<RentalHistoryResponse>>> getHistories(
+            @PathVariable("id") Long id) {
+        return ResponseEntity.ok(ApiResponse.success(rentalService.getHistories(id)));
+    }
+
+    /**
      * レンタル契約を新規登録する
      *
      * <p>エンドポイント: {@code POST /api/v1/rentals}</p>
@@ -83,6 +101,24 @@ public class RentalController {
     }
 
     /**
+     * レンタル契約情報を更新する（ベンダー・契約番号・期間・月額）
+     *
+     * <p>エンドポイント: {@code PUT /api/v1/rentals/{id}}</p>
+     * <p>認証: JWT 認証必須</p>
+     *
+     * @param id  更新対象のレンタル契約ID（パスパラメータ）
+     * @param req 更新リクエスト（リクエストボディ、バリデーション適用）
+     * @return 更新後のレンタル契約レスポンス
+     */
+    @Loggable(operation = "UPDATE", targetType = "レンタル契約")
+    @PutMapping("/api/v1/rentals/{id}")
+    public ResponseEntity<ApiResponse<RentalResponse>> update(
+            @PathVariable("id") Long id,
+            @Valid @RequestBody RentalUpdateRequest req) {
+        return ResponseEntity.ok(ApiResponse.success("レンタル契約を更新しました", rentalService.update(id, req)));
+    }
+
+    /**
      * レンタル品の返却を登録する
      *
      * <p>返却日として本日の日付が自動セットされる。
@@ -94,9 +130,12 @@ public class RentalController {
      * @param id 返却対象のレンタル契約ID（パスパラメータ）
      * @return 更新後のレンタル契約レスポンス
      */
+    @Loggable(operation = "RETURN", targetType = "レンタル契約")
     @PutMapping("/api/v1/rentals/{id}/return")
-    public ResponseEntity<ApiResponse<RentalResponse>> returnRental(@PathVariable("id") Long id) {
-        return ResponseEntity.ok(ApiResponse.success("返却を登録しました", rentalService.returnRental(id)));
+    public ResponseEntity<ApiResponse<RentalResponse>> returnRental(
+            @PathVariable("id") Long id,
+            @Valid @RequestBody RentalReturnRequest req) {
+        return ResponseEntity.ok(ApiResponse.success("返却を登録しました", rentalService.returnRental(id, req)));
     }
 
     // ======= レンタルベンダー /api/v1/rental-vendors =======

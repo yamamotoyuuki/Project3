@@ -59,35 +59,35 @@
         <h3 class="section-title">クイックアクセス</h3>
         <div class="link-grid">
           <!-- クイックリンクアイコン（imageフォルダより読み込み） -->
-          <div class="link-card" @click="router.push('/assets')">
+          <div class="link-card" @click="goToAssets">
             <img src="@/image/icon-pc.svg" class="link-icon" alt="PC一覧" />
             <div>
               <div class="link-title">PC一覧</div>
               <div class="link-desc">資産の確認・登録・編集</div>
             </div>
           </div>
-          <div class="link-card" @click="router.push('/employees')">
+          <div class="link-card" @click="goToEmployees">
             <img src="@/image/icon-employee.svg" class="link-icon" alt="社員管理" />
             <div>
               <div class="link-title">社員管理</div>
               <div class="link-desc">社員情報の管理</div>
             </div>
           </div>
-          <div class="link-card" @click="router.push('/loans')">
+          <div class="link-card" @click="goToLoans">
             <img src="@/image/icon-loan.svg" class="link-icon" alt="貸出管理" />
             <div>
               <div class="link-title">貸出管理</div>
               <div class="link-desc">貸出・返却の登録と確認</div>
             </div>
           </div>
-          <div class="link-card" @click="router.push('/rentals')">
+          <div class="link-card" @click="goToRentals">
             <img src="@/image/icon-rental.svg" class="link-icon" alt="レンタル管理" />
             <div>
               <div class="link-title">レンタル管理</div>
               <div class="link-desc">契約・期限アラート確認</div>
             </div>
           </div>
-          <div class="link-card" @click="router.push('/software')">
+          <div class="link-card" @click="goToSoftware">
             <img src="@/image/icon-software.svg" class="link-icon" alt="ソフトウェア" />
             <div>
               <div class="link-title">ソフトウェア</div>
@@ -104,13 +104,25 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { dashboardApi } from '@/api/dashboard'
-import AppLayout from '@/components/AppLayout.vue'
+import AppLayout from '@/components/common/AppLayout.vue'
 import type { DashboardStats } from '@/types'
 
 const router = useRouter()
 
 const stats = ref<DashboardStats | null>(null)
 const statsLoading = ref(false)
+
+// ---- クイックアクセス 遷移関数 ----
+/** PC資産一覧画面へ遷移する */
+function goToAssets(): void { router.push('/assets') }
+/** 社員一覧画面へ遷移する */
+function goToEmployees(): void { router.push('/employees') }
+/** 貸出管理画面へ遷移する */
+function goToLoans(): void { router.push('/loans') }
+/** レンタル管理画面へ遷移する */
+function goToRentals(): void { router.push('/rentals') }
+/** ソフトウェア管理画面へ遷移する */
+function goToSoftware(): void { router.push('/software') }
 
 async function loadStats() {
   statsLoading.value = true

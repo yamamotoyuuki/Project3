@@ -102,15 +102,18 @@
     </div>
 
     <!-- 詳細・編集ポップアップ（操作ボタン押下時に表示） -->
+    <!-- 詳細ポップアップ（変更履歴は openDetail 時に取得済みの detailHistories を渡す） -->
     <RentalDetailModal
       v-if="showDetailModal && detailRental"
       :rental="detailRental"
       :vendors="vendors"
       :saving="saving"
       :is-it-staff="authStore.isItStaff"
+      :histories="detailHistories"
+      :histories-loading="detailHistoriesLoading"
       @close="showDetailModal = false"
       @update="updateRental"
-      @return="doReturn(detailRental!)"
+      @return="handleReturn"
     />
 
     <!-- 契約登録モーダル -->
@@ -209,14 +212,16 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { rentalsApi } from '@/api/rentals'
 import { assetsApi } from '@/api/assets'
-import AppLayout from '@/components/AppLayout.vue'
-import AppPagination from '@/components/AppPagination.vue'
-import RentalDetailModal from '@/components/WEB_RNT0102_RentalDetailModal.vue'
-import type { PcRental, RentalVendor, PcAsset, RentalUpdateRequest } from '@/types'
+import AppLayout from '@/components/common/AppLayout.vue'
+import AppPagination from '@/components/common/AppPagination.vue'
+import RentalDetailModal from '@/views/WEB_RNT0102_RentalDetailView.vue'
+import type { PcRental, RentalVendor, PcAsset, RentalUpdateRequest, RentalHistoryEntry } from '@/types'
 
+const route = useRoute()
 const authStore = useAuthStore()
 const rentals = ref<PcRental[]>([])
 const loading = ref(false)
@@ -264,13 +269,29 @@ const saving = ref(false)
 const showDetailModal = ref(false)
 const detailRental = ref<PcRental | null>(null)
 
+/** 詳細ポップアップに渡す変更履歴 */
+const detailHistories = ref<RentalHistoryEntry[]>([])
+
+/** 変更履歴の読み込み中フラグ */
+const detailHistoriesLoading = ref(false)
+
 /**
- * 詳細ポップアップを開く
+ * 詳細ポップアップを開き、同時に変更履歴を取得する。
+ * 詳細ボタン押下のタイミングで API を実行することで、
+ * ダイアログが開いた時点で履歴が表示される。
  * @param r - 表示対象のレンタル契約
  */
-function openDetail(r: PcRental) {
+async function openDetail(r: PcRental): Promise<void> {
   detailRental.value = r
   showDetailModal.value = true
+  // 詳細ボタン押下と同時に変更履歴を取得する
+  detailHistoriesLoading.value = true
+  detailHistories.value = []
+  try {
+    const res = await rentalsApi.getHistories(r.id)
+    detailHistories.value = res.data
+  } catch { /* 取得失敗時は空のまま表示 */ }
+  finally { detailHistoriesLoading.value = false }
 }
 
 /**
@@ -292,11 +313,25 @@ async function updateRental(req: RentalUpdateRequest) {
   }
 }
 
-// 返却
-async function doReturn(r: PcRental) {
-  if (!confirm(`「${r.deviceName}」の返却を登録しますか？`)) return
+/**
+ * WEB_RNT0102 から return イベントを受け取り、返却 API を呼び出す。
+ * 確認ダイアログと返却日の入力は WEB_RNT0102 / WEB_RNT0103 側で完結する。
+ * @param returnDate - 入力された返却日（YYYY-MM-DD 形式）
+ */
+function handleReturn(returnDate: string): void {
+  if (detailRental.value) {
+    doReturn(detailRental.value, returnDate)
+  }
+}
+
+/**
+ * 返却 API を呼び出す。
+ * @param r          - 返却対象のレンタル契約
+ * @param returnDate - 返却日（YYYY-MM-DD 形式）
+ */
+async function doReturn(r: PcRental, returnDate: string) {
   try {
-    await rentalsApi.returnRental(r.id)
+    await rentalsApi.returnRental(r.id, { returnDate })
     showDetailModal.value = false  // 返却後にポップアップを閉じる
     loadRentals()
   } catch (e: unknown) {
@@ -355,7 +390,8 @@ const createForm = reactive({
 async function openCreate() {
   Object.assign(createForm, { pcAssetId: null, rentalVendorId: null, contractNumber: '', rentalStartDate: '', rentalEndDate: '', monthlyFee: null })
   formError.value = ''
-  const res = await assetsApi.findAll({ size: 200, acquisitionType: 'RENTAL' })
+  // 取得区分「RENTAL」の資産のみを取得する（新パラメータ acquisitionTypes を使用）
+  const res = await assetsApi.findAll({ size: 200, acquisitionTypes: 'RENTAL' })
   rentalAssets.value = res.data.content
   showCreateModal.value = true
 }
@@ -379,7 +415,16 @@ async function saveRental() {
   finally { saving.value = false }
 }
 
-onMounted(() => { loadRentals(); loadVendors() })
+onMounted(() => {
+  // 資産一覧画面の「レンタル」ボタンから遷移した場合、
+  // クエリパラメータ keyword（資産番号）を検索フォームにセットして自動検索する
+  const queryKeyword = route.query.keyword
+  if (queryKeyword && typeof queryKeyword === 'string') {
+    searchForm.keyword = queryKeyword
+  }
+  loadRentals()
+  loadVendors()
+})
 </script>
 
 <style scoped>

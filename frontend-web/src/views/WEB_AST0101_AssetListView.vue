@@ -30,42 +30,31 @@
 
       <!-- 検索バー -->
       <div class="search-bar card">
+        <!-- キーワード検索（資産番号） -->
         <input
           v-model="searchForm.keyword"
           class="input"
           placeholder="資産番号"
           @keyup.enter="doSearch"
         />
-        <select v-model="searchForm.deviceType" class="select">
-          <option value="">機器種別 : すべて</option>
-          <option
-            v-for="opt in deviceTypeOptions"
-            :key="opt.codeValue"
-            :value="opt.codeValue"
-          >{{ opt.codeLabel }}</option>
-        </select>
-        <!--
-          取得区分フィルタ: acquisitionTypeOptions（API取得済み）から選択肢を生成する。
-        -->
-        <select v-model="searchForm.acquisitionType" class="select">
-          <option value="">取得区分 : すべて</option>
-          <option
-            v-for="opt in acquisitionTypeOptions"
-            :key="opt.codeValue"
-            :value="opt.codeValue"
-          >{{ opt.codeLabel }}</option>
-        </select>
-        <!--
-          ステータスフィルタ: statusOptions（API取得済み）から選択肢を生成する。
-        -->
-        <select v-model="searchForm.status" class="select">
-          <option value="">ステータス : すべて</option>
-          <option
-            v-for="opt in statusOptions"
-            :key="opt.codeValue"
-            :value="opt.codeValue"
-          >{{ opt.codeLabel }}</option>
-        </select>
+        <!-- 機器種別フィルタ（複数選択・含む/除く対応。共通コンポーネント使用） -->
+        <MultiSelectFilter
+          label="機器種別"
+          :options="deviceTypeOptions"
+          v-model="searchForm.deviceTypeFilter"
+        />
+        <!-- 取得区分フィルタ（複数選択・含む/除く対応。共通コンポーネント使用） -->
+        <MultiSelectFilter
+          label="取得区分"
+          :options="acquisitionTypeOptions"
+          v-model="searchForm.acquisitionTypeFilter"
+        />
+        <!-- ステータスフィルタ（複数選択・含む/除く対応。共通コンポーネント使用） -->
+        <MultiSelectFilter
+          label="ステータス"
+          :options="statusOptions"
+          v-model="searchForm.statusFilter"
+        />
         <button class="btn btn-secondary" @click="doSearch">
           <img src="@/image/icon-search.svg" class="btn-icon-img" alt="検索" /> 検索
         </button>
@@ -82,13 +71,12 @@
               <tr>
                 <th>資産番号</th>
                 <th>機器種別</th>
-                <th>メーカー / 型番</th>
-                <th>ステータス</th>
                 <th>取得区分</th>
+                <th>ステータス</th>
                 <th>使用者</th>
                 <th>場所</th>
                 <th>エージェント番号</th>
-                <th>操作</th>
+                <th>詳細</th>
               </tr>
             </thead>
             <tbody>
@@ -99,15 +87,20 @@
                 <td class="mono">{{ a.assetNumber }}</td>
                 <!-- 機器種別: deviceTypeOptions から codeLabel を引いて表示する -->
                 <td>{{ deviceTypeLabel(a.deviceType) }}</td>
-                <td class="small-text">
-                  {{ [a.maker, a.modelNumber].filter(Boolean).join(' / ') || '—' }}
+                <td>
+                  <!--
+                    レンタル: ボタンとして表示し、クリックでレンタル一覧へ遷移する。
+                    遷移先では資産番号をキーワードとして渡し、該当契約を絞り込む。
+                    購入: 遷移先がないためスパン（バッジ表示のみ）とする。
+                  -->
+                  <button
+                    v-if="a.acquisitionType === 'RENTAL'"
+                    class="acq-badge rental acq-link"
+                    @click="goToRentalList(a.assetNumber)"
+                  >レンタル</button>
+                  <span v-else class="acq-badge purchase">購入</span>
                 </td>
                 <td><StatusBadge :status="a.status" /></td>
-                <td>
-                  <span class="acq-badge" :class="a.acquisitionType === 'RENTAL' ? 'rental' : 'purchase'">
-                    {{ a.acquisitionType === 'RENTAL' ? 'レンタル' : '購入' }}
-                  </span>
-                </td>
                 <!-- 社員マスタ連携あり: assignedEmployeeName、エージェント入力のみ: userName -->
                 <td>{{ a.assignedEmployeeName || a.userName || '—' }}</td>
                 <td class="small-text">{{ a.location || '—' }}</td>
@@ -119,7 +112,7 @@
                     v-if="authStore.isItStaff"
                     class="btn-icon"
                     title="編集"
-                    @click="router.push(`/assets/${a.id}`)"
+                    @click="goToAssetDetail(a.id)"
                   ><img src="@/image/icon-edit.svg" alt="編集" /></button>
                 </td>
               </tr>
@@ -163,7 +156,8 @@
             </select>
           </div>
           <div class="form-group full">
-            <label>端末名 <span class="required">*</span></label>
+            <!-- 端末名は任意項目のため、必須マーク（*）なし -->
+            <label>端末名</label>
             <input v-model="form.deviceName" class="input" placeholder="例: ThinkPad X1 Carbon" />
           </div>
           <div class="form-group">
@@ -251,10 +245,11 @@ import { useAuthStore } from '@/stores/auth'
 import { assetsApi } from '@/api/assets'
 import { employeesApi } from '@/api/employees'
 import { commonApi } from '@/api/common'
-import AppLayout from '@/components/AppLayout.vue'
-import StatusBadge from '@/components/StatusBadge.vue'
-import AppPagination from '@/components/AppPagination.vue'
-import type { Employee, AcquisitionType, PcStatus, PcAsset, CodeValue } from '@/types'
+import AppLayout from '@/components/common/AppLayout.vue'
+import StatusBadge from '@/components/common/StatusBadge.vue'
+import AppPagination from '@/components/common/AppPagination.vue'
+import MultiSelectFilter from '@/components/common/MultiSelectFilter.vue'
+import type { Employee, PcAsset, CodeValue, MultiFilterValue, AcquisitionType, PcStatus } from '@/types'
 
 const authStore = useAuthStore()
 const router = useRouter()
@@ -279,29 +274,48 @@ const totalPages = ref(0)
 const totalElements = ref(0)
 
 const searchForm = reactive({
-  keyword: '',
-  status: '' as PcStatus | '',
-  acquisitionType: '' as AcquisitionType | '',
-  deviceType: '',  // 機器種別フィルタ（'' = 全件。DEVICE_TYPE コード値）
+  keyword:              '',
+  // 各フィルタの初期状態（values 空 = フィルタなし = 全件表示）
+  statusFilter:          { values: [] as string[] } as MultiFilterValue,
+  acquisitionTypeFilter: { values: [] as string[] } as MultiFilterValue,
+  deviceTypeFilter:      { values: [] as string[] } as MultiFilterValue,
 })
+
+/**
+ * MultiFilterValue を API クエリパラメータ文字列に変換する。
+ * 未選択（values 空）または全選択の場合はフィルタなし（undefined）を返す。
+ * @param filter     - フィルタ選択状態
+ * @param allOptions - 全選択肢（全選択判定に使用）
+ */
+function buildFilterParam(
+  filter:     MultiFilterValue,
+  allOptions: CodeValue[],
+): string | undefined {
+  const { values } = filter
+  // 未選択 or 全選択 → フィルタなし（undefined = パラメータを送信しない）
+  if (values.length === 0 || values.length === allOptions.length) return undefined
+  return values.join(',')
+}
 
 async function loadAssets() {
   loading.value = true
   error.value = ''
   try {
     const res = await assetsApi.findAll({
-      page:            currentPage.value,
-      size:            pageSize,
-      keyword:         searchForm.keyword || undefined,
-      status:          searchForm.status || undefined,
-      acquisitionType: searchForm.acquisitionType || undefined,
-      deviceType:      searchForm.deviceType || undefined,  // 機器種別フィルタ
+      page:             currentPage.value,
+      size:             pageSize,
+      keyword:          searchForm.keyword || undefined,
+      // チェック済み項目のカンマ区切り文字列を渡す（全件・未選択時は undefined）
+      statuses:         buildFilterParam(searchForm.statusFilter,          statusOptions.value),
+      acquisitionTypes: buildFilterParam(searchForm.acquisitionTypeFilter, acquisitionTypeOptions.value),
+      deviceTypes:      buildFilterParam(searchForm.deviceTypeFilter,      deviceTypeOptions.value),
     })
     assets.value = res.data.content
     totalPages.value = res.data.totalPages
     totalElements.value = res.data.totalElements
-  } catch (e: any) {
-    error.value = e?.response?.data?.message ?? 'データの取得に失敗しました'
+  } catch (e: unknown) {
+    error.value = (e as { response?: { data?: { message?: string } } })
+      ?.response?.data?.message ?? 'データの取得に失敗しました'
   } finally {
     loading.value = false
   }
@@ -312,11 +326,29 @@ function doSearch() {
   loadAssets()
 }
 
+/**
+ * 資産詳細画面へ遷移する。
+ * @param id - 遷移先の資産 ID
+ */
+function goToAssetDetail(id: number): void {
+  router.push(`/assets/${id}`)
+}
+
+/**
+ * レンタル一覧画面へ遷移する。
+ * 資産番号をキーワードとして渡し、該当契約を絞り込んだ状態で表示する。
+ * @param assetNumber - 絞り込みに使用する資産番号
+ */
+function goToRentalList(assetNumber: string): void {
+  router.push({ path: '/rentals', query: { keyword: assetNumber } })
+}
+
 function resetSearch() {
-  searchForm.keyword = ''
-  searchForm.status = ''
-  searchForm.acquisitionType = ''
-  searchForm.deviceType = ''  // 機器種別フィルタをリセット
+  searchForm.keyword             = ''
+  // 各フィルタを初期状態（全件表示）にリセットする
+  searchForm.statusFilter          = { values: [] }
+  searchForm.acquisitionTypeFilter = { values: [] }
+  searchForm.deviceTypeFilter      = { values: [] }
   currentPage.value = 0
   loadAssets()
 }
@@ -452,8 +484,8 @@ function closeModal() {
 
 async function saveAsset() {
   formError.value = ''
+  // 資産番号は必須。端末名は任意項目のためバリデーション対象外。
   if (!form.assetNumber) { formError.value = '資産番号は必須です'; return }
-  if (!form.deviceName)  { formError.value = '端末名は必須です';   return }
   saving.value = true
   try {
     await assetsApi.create({
@@ -567,6 +599,13 @@ onMounted(() => {
 }
 .purchase { background: #e0f2fe; color: #0369a1; }
 .rental   { background: #fdf4ff; color: #7e22ce; }
+/* レンタルバッジをボタンとして表示するためのリセット・クリック可能スタイル */
+.acq-link {
+  border: none;
+  cursor: pointer;
+  letter-spacing: 0.01em;
+}
+.acq-link:hover { opacity: 0.75; }
 
 .loading { padding: 40px; text-align: center; color: #9ca3af; }
 .error-msg { padding: 16px; color: #ef4444; }

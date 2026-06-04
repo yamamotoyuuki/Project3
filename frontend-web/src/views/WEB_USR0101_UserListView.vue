@@ -103,7 +103,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { usersApi } from '@/api/users'
-import AppLayout from '@/components/AppLayout.vue'
+import AppLayout from '@/components/common/AppLayout.vue'
 import type { SystemUser } from '@/types'
 
 const users = ref<SystemUser[]>([])

@@ -153,8 +153,8 @@
 import { ref, reactive, onMounted, watch } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { employeesApi } from '@/api/employees'
-import AppLayout from '@/components/AppLayout.vue'
-import AppPagination from '@/components/AppPagination.vue'
+import AppLayout from '@/components/common/AppLayout.vue'
+import AppPagination from '@/components/common/AppPagination.vue'
 import type { Employee } from '@/types'
 
 const authStore = useAuthStore()

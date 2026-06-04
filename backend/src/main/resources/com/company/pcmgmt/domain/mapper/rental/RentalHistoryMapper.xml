@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.company.pcmgmt.domain.mapper.rental.RentalHistoryMapper">
+
+    <!-- 結果マップ -->
+    <resultMap id="HistoryResponseMap"
+               type="com.company.pcmgmt.api.dto.response.rental.RentalHistoryResponse">
+        <id     property="id"            column="id"/>
+        <result property="rentalId"      column="rental_id"/>
+        <result property="operationId"   column="operation_id"/>
+        <result property="operation"     column="operation"/>
+        <result property="fieldName"     column="field_name"/>
+        <result property="fieldLabel"    column="field_label"/>
+        <result property="oldValue"      column="old_value"/>
+        <result property="newValue"      column="new_value"/>
+        <result property="changedByName" column="changed_by_name"/>
+        <result property="changedAt"     column="changed_at"/>
+    </resultMap>
+
+    <!-- 指定レンタル契約の変更履歴一覧取得（新しい順） -->
+    <select id="findByRentalId" resultMap="HistoryResponseMap">
+        SELECT
+            id,
+            rental_id,
+            operation_id,
+            operation,
+            field_name,
+            field_label,
+            old_value,
+            new_value,
+            changed_by_name,
+            changed_at
+        FROM pc_rental_history
+        WHERE rental_id = #{rentalId}
+        ORDER BY changed_at DESC, id ASC
+    </select>
+
+    <!-- 変更履歴を1件登録 -->
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO pc_rental_history (
+            rental_id,
+            operation_id,
+            operation,
+            field_name,
+            field_label,
+            old_value,
+            new_value,
+            changed_by_name
+        ) VALUES (
+            #{rentalId},
+            #{operationId},
+            #{operation},
+            #{fieldName},
+            #{fieldLabel},
+            #{oldValue},
+            #{newValue},
+            #{changedByName}
+        )
+    </insert>
+
+</mapper>

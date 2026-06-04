@@ -148,15 +148,24 @@ export interface PcAsset {
   updatedAt:            string          // 更新日時（ISO 8601）
 }
 
+/**
+ * マルチセレクトフィルタの選択状態型
+ * MultiSelectFilter コンポーネントの v-model として使用する。
+ * チェックした項目を「含む」条件としてフィルタする。
+ */
+export interface MultiFilterValue {
+  values: string[]  // 選択済みコード値の配列（空 = フィルタなし = 全件表示）
+}
+
 /** PC 資産一覧の検索パラメータ */
 export interface AssetSearchParams {
-  page?:            number               // ページ番号（0 始まり）
-  size?:            number               // 1 ページあたりの件数
-  status?:          PcStatus | ''        // ステータスフィルタ（'' = 全件）
-  acquisitionType?: AcquisitionType | '' // 取得区分フィルタ（'' = 全件）
-  deviceType?:      string               // 機器種別フィルタ（'' = 全件。DEVICE_TYPE コード値）
-  keyword?:         string               // フリーワード検索（資産番号・機器名等）
-  location?:        string               // 設置場所フィルタ
+  page?:             number   // ページ番号（0 始まり）
+  size?:             number   // 1 ページあたりの件数
+  keyword?:          string   // フリーワード検索（資産番号・機器名等）
+  statuses?:         string   // ステータスフィルタ（カンマ区切り。例: "IN_USE,IN_STORAGE"）
+  acquisitionTypes?: string   // 取得区分フィルタ（カンマ区切り）
+  deviceTypes?:      string   // 機器種別フィルタ（カンマ区切り）
+  location?:         string   // 設置場所フィルタ（部分一致）
 }
 
 /** PC 資産新規登録リクエスト */
@@ -362,6 +371,32 @@ export interface RentalUpdateRequest {
   rentalStartDate: string         // 開始日（YYYY-MM-DD、必須）
   rentalEndDate:   string         // 終了日（YYYY-MM-DD、必須）
   monthlyFee:      number | null  // 月額費用（円、null = 未設定）
+}
+
+/**
+ * レンタル返却リクエスト
+ * PUT /api/v1/rentals/{id}/return のリクエストボディ。
+ */
+export interface RentalReturnRequest {
+  returnDate: string  // 返却日（YYYY-MM-DD、必須）
+}
+
+/**
+ * レンタル契約変更履歴エントリ
+ * GET /api/v1/rentals/{id}/histories のレスポンスアイテム型。
+ * フロントエンドでは operationId をキーにグルーピングして表示する。
+ */
+export interface RentalHistoryEntry {
+  id:            number          // レコードID
+  rentalId:      number          // 対象レンタル契約ID
+  operationId:   string          // 同一操作をまとめるUUID（グルーピングキー）
+  operation:     string          // CREATE / UPDATE / RETURN
+  fieldName:     string | null   // 変更フィールド名（UPDATE 時のみ）
+  fieldLabel:    string | null   // 画面表示用ラベル
+  oldValue:      string | null   // 変更前の値
+  newValue:      string | null   // 変更後の値
+  changedByName: string | null   // 操作者名
+  changedAt:     string          // ISO 8601 形式の変更日時
 }
 
 /** レンタル業者登録リクエスト */

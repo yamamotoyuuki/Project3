@@ -1,8 +1,8 @@
 import apiClient from './axios'
 import type {
   ApiResponse, PageResponse,
-  PcRental, RentalCreateRequest, RentalUpdateRequest, RentalSearchParams,
-  RentalVendor, RentalVendorCreateRequest,
+  PcRental, RentalCreateRequest, RentalUpdateRequest, RentalReturnRequest, RentalSearchParams,
+  RentalVendor, RentalVendorCreateRequest, RentalHistoryEntry,
 } from '@/types'
 
 export const rentalsApi = {
@@ -19,8 +19,14 @@ export const rentalsApi = {
   update(id: number, req: RentalUpdateRequest): Promise<ApiResponse<PcRental>> {
     return apiClient.put<ApiResponse<PcRental>>(`/rentals/${id}`, req).then(r => r.data)
   },
-  returnRental(id: number): Promise<ApiResponse<PcRental>> {
-    return apiClient.put<ApiResponse<PcRental>>(`/rentals/${id}/return`).then(r => r.data)
+  /** 返却日を指定してレンタル品の返却を登録する */
+  returnRental(id: number, req: RentalReturnRequest): Promise<ApiResponse<PcRental>> {
+    return apiClient.put<ApiResponse<PcRental>>(`/rentals/${id}/return`, req).then(r => r.data)
+  },
+
+  /** 指定レンタル契約の変更履歴一覧を取得する */
+  getHistories(id: number): Promise<ApiResponse<RentalHistoryEntry[]>> {
+    return apiClient.get<ApiResponse<RentalHistoryEntry[]>>(`/rentals/${id}/histories`).then(r => r.data)
   },
 
   // ---- ベンダー ----

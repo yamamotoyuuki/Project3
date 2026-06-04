@@ -8,9 +8,6 @@
 <template>
   <AppLayout>
     <div class="page">
-      <!-- 戻るボタン -->
-      <button class="back-btn" @click="router.back()">← 一覧に戻る</button>
-
       <div v-if="loading" class="loading">読み込み中…</div>
       <div v-else-if="error" class="error-msg">{{ error }}</div>
 
@@ -18,11 +15,10 @@
         <!-- ページヘッダー -->
         <div class="page-header">
           <div>
-            <h2 class="page-title">{{ asset.deviceName }}</h2>
+            <h2 class="page-title">{{ asset.deviceName }}　　の詳細情報</h2>
             <p class="asset-number mono">{{ asset.assetNumber }}</p>
           </div>
           <div class="header-actions">
-            <StatusBadge :status="asset.status" />
             <!-- imageフォルダのアイコン画像を読み込む（規約準拠） -->
             <button v-if="authStore.isItStaff" class="btn btn-primary" @click="openEdit">
               <img src="@/image/icon-edit.svg" class="btn-icon-img" alt="編集" /> 編集
@@ -56,6 +52,12 @@
           <div class="card">
             <h3 class="section-title">基本情報</h3>
             <dl class="info-grid">
+              <!-- ステータスバッジ（取得区分の上に配置） -->
+              <dt>ステータス</dt>
+              <dd><StatusBadge :status="asset.status" /></dd>
+              <!-- 機器種別: deviceTypeOptions から codeLabel を引いて表示する -->
+              <dt>機器種別</dt>
+              <dd>{{ deviceTypeLabel(asset.deviceType) }}</dd>
               <dt>取得区分</dt>
               <dd>
                 <span class="acq-badge" :class="asset.acquisitionType === 'RENTAL' ? 'rental' : 'purchase'">
@@ -67,9 +69,8 @@
               <dt>型番</dt>
               <dd>{{ asset.modelNumber || '—' }}</dd>
               <dt>シリアル番号</dt>
-              <dd class="mono">{{ asset.serialNumber || '—' }}</dd>
-              <dt>ホスト名</dt>
-              <dd class="mono">{{ asset.hostname || '—' }}</dd>
+              <!-- 値がある場合のみ等幅フォント（mono）を適用し、空欄時の「—」の見た目を統一する -->
+              <dd :class="{ mono: asset.serialNumber }">{{ asset.serialNumber || '—' }}</dd>
               <dt>設置場所</dt>
               <!-- エージェントが報告した設置場所を表示（読み取り専用） -->
               <dd>{{ asset.location || '—' }}</dd>
@@ -128,6 +129,11 @@
           </table>
         </div>
       </template>
+
+      <!-- 一覧に戻るボタン（ページ右下に配置） -->
+      <div class="back-actions">
+        <button class="btn btn-back" @click="goBack">← 一覧に戻る</button>
+      </div>
     </div>
 
     <!-- 編集モーダル -->
@@ -223,19 +229,15 @@
       </div>
     </div>
 
-    <!-- 削除確認ダイアログ -->
-    <div v-if="showDeleteConfirm" class="modal-overlay" @click.self="showDeleteConfirm = false">
-      <div class="modal modal-sm">
-        <h3 class="modal-title">削除確認</h3>
-        <p>「{{ asset?.deviceName }}」を削除します。この操作は取り消せません。</p>
-        <div class="modal-actions">
-          <button class="btn btn-ghost" @click="showDeleteConfirm = false">キャンセル</button>
-          <button class="btn btn-danger" :disabled="deleting" @click="deleteAsset">
-            {{ deleting ? '削除中…' : '削除する' }}
-          </button>
-        </div>
-      </div>
-    </div>
+    <!-- 削除確認ダイアログ（共通コンポーネント） -->
+    <AppConfirmDialog
+      v-model="showDeleteConfirm"
+      :message="`「${asset?.deviceName || asset?.assetNumber}」を削除します。`"
+      sub-message="この操作は取り消せません。"
+      confirm-label="削除する"
+      variant="danger"
+      @confirm="deleteAsset"
+    />
   </AppLayout>
 </template>
 
@@ -246,8 +248,9 @@ import { useAuthStore } from '@/stores/auth'
 import { assetsApi } from '@/api/assets'
 import { employeesApi } from '@/api/employees'
 import { commonApi } from '@/api/common'
-import AppLayout from '@/components/AppLayout.vue'
-import StatusBadge from '@/components/StatusBadge.vue'
+import AppLayout from '@/components/common/AppLayout.vue'
+import AppConfirmDialog from '@/components/common/AppConfirmDialog.vue'
+import StatusBadge from '@/components/common/StatusBadge.vue'
 import type { PcAsset, Employee, AcquisitionType, PcStatus, InstalledSoftware, CodeValue } from '@/types'
 
 const route = useRoute()
@@ -356,6 +359,17 @@ async function loadDeviceTypes(): Promise<void> {
   }
 }
 
+/**
+ * 機器種別コード値を表示ラベルに変換する。
+ * deviceTypeOptions から codeValue に一致する codeLabel を返す。
+ * 未設定（null）または一致なしの場合は「—」を返す。
+ * @param code - DEVICE_TYPE のコード値（例: "LAPTOP", "DESKTOP"）
+ */
+function deviceTypeLabel(code: string | null): string {
+  if (!code) return '—'
+  return deviceTypeOptions.value.find((o) => o.codeValue === code)?.codeLabel ?? '—'
+}
+
 // ---- 社員プルダウン ----
 const activeEmployees = ref<Employee[]>([])
 async function loadActiveEmployees() {
@@ -412,6 +426,9 @@ function openEdit() {
 }
 
 function closeModal() { showModal.value = false }
+
+/** 前の画面（資産一覧）へ戻る */
+function goBack(): void { router.back() }
 
 async function saveAsset() {
   if (!form.deviceName) { formError.value = '端末名は必須です'; return }
@@ -471,15 +488,13 @@ onMounted(() => {
 
 <style scoped>
 .page { display: flex; flex-direction: column; gap: 20px; }
-.back-btn {
-  background: none;
-  border: none;
-  color: #6366f1;
-  cursor: pointer;
-  font-size: 14px;
-  padding: 0;
-  text-decoration: underline;
+
+/* 一覧に戻るボタン（右揃えで右下に配置） */
+.back-actions {
+  display: flex;
+  justify-content: flex-end;
 }
+
 .page-header {
   display: flex;
   justify-content: space-between;
@@ -597,6 +612,9 @@ onMounted(() => {
 .btn-danger { background: #ef4444; color: white; }
 .btn-danger:hover { background: #dc2626; }
 .btn-ghost { background: transparent; color: #6b7280; border: 1px solid #e5e7eb; }
+/* 一覧に戻るボタン専用スタイル（#6b6868 指定色） */
+.btn-back { background: #6b6868; color: white; border: 1px solid #6b6868; }
+.btn-back:hover { background: #555252; border-color: #555252; }
 
 /* Modal */
 .modal-overlay {
@@ -607,7 +625,6 @@ onMounted(() => {
   background: white; border-radius: 12px; padding: 28px;
   width: 680px; max-width: 95vw; max-height: 90vh; overflow-y: auto;
 }
-.modal-sm { width: 420px; }
 .modal-title { font-size: 18px; font-weight: 700; margin: 0 0 20px; color: #1a1a2e; }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .form-group { display: flex; flex-direction: column; gap: 5px; }

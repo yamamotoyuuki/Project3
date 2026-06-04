@@ -17,8 +17,7 @@ public class AssetCreateRequest {
     @NotBlank(message = "資産番号は必須です")
     private String assetNumber;
 
-    /** 端末名・機種の通称（必須。例: "開発用ThinkPad"） */
-    @NotBlank(message = "端末名は必須です")
+    /** 端末名・機種の通称（任意。例: "開発用ThinkPad"） */
     private String deviceName;
 
     /**

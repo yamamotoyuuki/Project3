@@ -4,8 +4,8 @@
     <header class="header">
       <div class="header-left">
         <!-- imageフォルダのアイコン画像を読み込む（規約: アイコンは画像化してimageフォルダに格納） -->
-        <img src="@/image/icon-pc.svg" class="header-logo" alt="PC管理システム" />
-        <h1 class="header-title">PC管理システム</h1>
+        <img src="@/image/icon-pc.svg" class="header-logo" alt="資産管理システム" />
+        <h1 class="header-title">資産管理システム</h1>
       </div>
       <div class="header-right">
         <span class="user-info">{{ authStore.currentUser?.displayName }}</span>
@@ -23,7 +23,7 @@
             :key="item.to"
             class="nav-item"
             :class="{ active: isActive(item.to) }"
-            @click="router.push(item.to)"
+            @click="navigateTo(item.to)"
           >
             <!-- imageフォルダの画像ファイルをアイコンとして読み込む（規約準拠） -->
             <img :src="item.icon" class="nav-icon" :alt="item.label" />
@@ -71,7 +71,7 @@ const roleLabel = computed(() => {
 const navItems = computed(() => {
   const items = [
     { to: '/dashboard',  icon: iconDashboard, label: 'ダッシュボード' },
-    { to: '/assets',     icon: iconPc,        label: '機器一覧' },
+    { to: '/assets',     icon: iconPc,        label: '資産一覧' },
     { to: '/employees',  icon: iconEmployee,  label: '社員管理' },
     { to: '/loans',      icon: iconLoan,      label: '貸出管理' },
     { to: '/rentals',    icon: iconRental,    label: 'レンタル管理' },
@@ -85,6 +85,14 @@ const navItems = computed(() => {
 
 function isActive(to: string): boolean {
   return route.path === to || route.path.startsWith(to + '/')
+}
+
+/**
+ * サイドバーのナビゲーション項目クリック時に対象パスへ遷移する。
+ * @param to - 遷移先のパス（例: '/assets'）
+ */
+function navigateTo(to: string): void {
+  router.push(to)
 }
 
 async function handleLogout() {

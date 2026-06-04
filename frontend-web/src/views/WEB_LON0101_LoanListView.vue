@@ -170,8 +170,8 @@ import { useAuthStore } from '@/stores/auth'
 import { loansApi } from '@/api/loans'
 import { assetsApi } from '@/api/assets'
 import { employeesApi } from '@/api/employees'
-import AppLayout from '@/components/AppLayout.vue'
-import AppPagination from '@/components/AppPagination.vue'
+import AppLayout from '@/components/common/AppLayout.vue'
+import AppPagination from '@/components/common/AppPagination.vue'
 import type { PcLoan, PcAsset, Employee } from '@/types'
 
 const authStore = useAuthStore()
