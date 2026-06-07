@@ -84,6 +84,23 @@ public class JwtTokenProvider {
     }
 
     /**
+     * トークンからユーザーID を取得する
+     *
+     * <p>JWT クレームの "userId" フィールドからユーザーIDを取得する。</p>
+     *
+     * @param token 検証対象の JWT 文字列
+     * @return トークンに含まれるユーザーID
+     */
+    public Long getUserId(String token) {
+        // クレームを解析して userId カスタムクレームを Long で返す
+        Object userId = parseClaims(token).get("userId");
+        if (userId instanceof Number number) {
+            return number.longValue();
+        }
+        throw new IllegalStateException("JWT クレームに userId が含まれていません");
+    }
+
+    /**
      * トークンの有効性を検証する
      *
      * <p>署名・有効期限・フォーマットを検証し、問題がなければ true を返す。

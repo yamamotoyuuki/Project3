@@ -82,6 +82,25 @@ pub struct ApiSection {
     ///     レスポンスキーが "base-url" になり TypeScript で undefined になる不具合あり。
     #[serde(rename(deserialize = "base-url"))]
     pub base_url: String,
+
+    /// 初回登録トークン（管理者がWebコンソールで発行した値）
+    ///
+    /// application.yml の `agent.api.enrollment-token` に設定する。
+    /// エージェントの初回起動時（.agent_id ファイルが存在しない場合）に使用する。
+    /// 登録完了後は application.yml から削除して構わない（次回起動以降は APIキーを使用）。
+    #[serde(rename(deserialize = "enrollment-token"), default)]
+    pub enrollment_token: Option<String>,
+}
+
+/// エージェント初回登録レスポンス（バックエンドから受け取る値）
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct AgentRegisterResponse {
+    /// 発行されたエージェント番号（例: "AGT-A1B2C3D4"）
+    #[serde(rename = "agentNumber")]
+    pub agent_number: String,
+    /// 発行されたAPIキー（平文）。この値を安全なファイルに保存して以降の通信に使用する
+    #[serde(rename = "apiKey")]
+    pub api_key: String,
 }
 
 // =====================================================
@@ -250,6 +269,7 @@ fn load_config(app: tauri::AppHandle) -> Result<ApiSection, String> {
     println!("[CONFIG] application.yml が見つかりませんでした。フォールバック URL を使用します: {}", fallback_url);
     Ok(ApiSection {
         base_url: fallback_url,
+        enrollment_token: None, // フォールバック時は登録トークン未設定（application.yml がない場合）
     })
 }
 
@@ -355,19 +375,21 @@ fn collect_pc_info() -> Result<AgentReport, String> {
 ///
 /// # Arguments
 /// * `api_url` - バックエンドの API ベース URL（例: "http://localhost:8080/api/v1"）
+/// * `api_key` - エージェント登録時に発行されたAPIキー（Authorization ヘッダーに付与する）
 /// * `report`  - 送信する AgentReport
 ///
 /// # Returns
 /// 送信成功時は `Ok("送信成功")`、失敗時は `Err(エラーメッセージ)` を返す。
 #[tauri::command]
-async fn send_report(api_url: String, report: AgentReport) -> Result<String, String> {
+async fn send_report(api_url: String, api_key: String, report: AgentReport) -> Result<String, String> {
     let client = reqwest::Client::new();
     // URL を組み立てる（末尾スラッシュを除去してから追記）
     let url = format!("{}/agent/report", api_url.trim_end_matches('/'));
 
     let response = client
         .post(&url)
-        .json(&report)                         // AgentReport を JSON シリアライズして送信
+        .header("Authorization", format!("Bearer {}", api_key)) // APIキーを認証ヘッダーに付与
+        .json(&report)                                           // AgentReport を JSON シリアライズして送信
         .send()
         .await
         .map_err(|e| format!("送信エラー: {}", e))?;
@@ -404,6 +426,7 @@ async fn send_report(api_url: String, report: AgentReport) -> Result<String, Str
 #[tauri::command]
 async fn fetch_asset_acquisition_type(
     api_url: String,
+    api_key: String,
     agent_number: String,
     hostname: String,
 ) -> Result<Option<AssetInfo>, String> {
@@ -418,6 +441,7 @@ async fn fetch_asset_acquisition_type(
 
     let response = client
         .get(&url)
+        .header("Authorization", format!("Bearer {}", api_key)) // APIキーを認証ヘッダーに付与
         .send()
         .await
         .map_err(|e| format!("取得エラー: {}", e))?;
@@ -462,6 +486,11 @@ async fn fetch_asset_acquisition_type(
 /// - Unix 系 OS: `.` 始まりにより隠しファイル扱い
 /// - Windows: attrib +H で明示的に隠し属性を付与する
 const AGENT_NUMBER_FILE: &str = ".agent_id";
+
+/// APIキーを保存するファイル名
+/// - エージェント初回登録時にバックエンドから払い出された APIキー（平文）を保存する
+/// - .agent_id と同じディレクトリに配置し、Windows では隠し属性を付与する
+const AGENT_API_KEY_FILE: &str = ".agent_key";
 
 /// エージェント番号をアプリのローカルデータディレクトリから読み込む。
 ///
@@ -551,30 +580,112 @@ fn save_agent_number(app: tauri::AppHandle, agent_number: String) -> Result<(), 
 }
 
 // =====================================================
+// Tauri コマンド: APIキーのファイル保存・読み込み
+// =====================================================
+
+/// APIキーをアプリのローカルデータディレクトリから読み込む。
+///
+/// 保存先は AGENT_NUMBER_FILE と同じディレクトリ（.agent_key）。
+///
+/// # Returns
+/// ファイルが存在する場合は `Ok(Some("APIキー文字列"))`、
+/// ファイルがない場合は `Ok(None)`（初回起動・未登録）。
+#[tauri::command]
+fn load_api_key(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    use tauri::Manager;
+
+    let data_dir = app
+        .path()
+        .app_local_data_dir()
+        .map_err(|e| format!("データディレクトリ取得エラー: {}", e))?;
+
+    let file_path = data_dir.join(AGENT_API_KEY_FILE);
+
+    if !file_path.exists() {
+        return Ok(None);
+    }
+
+    let content = std::fs::read_to_string(&file_path)
+        .map_err(|e| format!("APIキー読み込みエラー: {}", e))?;
+
+    let key = content.trim().to_string();
+    if key.is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(key))
+    }
+}
+
+/// APIキーをアプリのローカルデータディレクトリに保存する。
+///
+/// Windows では attrib +H で隠し属性を付与する。
+///
+/// # Arguments
+/// * `app`     - Tauri アプリハンドル
+/// * `api_key` - 保存するAPIキー（平文）
+#[tauri::command]
+fn save_api_key(app: tauri::AppHandle, api_key: String) -> Result<(), String> {
+    use tauri::Manager;
+
+    let data_dir = app
+        .path()
+        .app_local_data_dir()
+        .map_err(|e| format!("データディレクトリ取得エラー: {}", e))?;
+
+    std::fs::create_dir_all(&data_dir)
+        .map_err(|e| format!("ディレクトリ作成エラー: {}", e))?;
+
+    let file_path = data_dir.join(AGENT_API_KEY_FILE);
+
+    std::fs::write(&file_path, &api_key)
+        .map_err(|e| format!("APIキー書き込みエラー: {}", e))?;
+
+    // Windows の場合は隠し属性を付与する
+    #[cfg(target_os = "windows")]
+    {
+        if let Some(path_str) = file_path.to_str() {
+            let _ = std::process::Command::new("attrib")
+                .args(["+H", path_str])
+                .output();
+        }
+    }
+
+    Ok(())
+}
+
+// =====================================================
 // Tauri コマンド: エージェントを初回登録する
 // =====================================================
 
-/// エージェントを初回登録してエージェント番号を発行してもらう。
+/// エージェントを初回登録してエージェント番号とAPIキーを発行してもらう。
 ///
 /// エージェントアプリ起動時にローカルファイルにエージェント番号が存在しない場合に呼び出す。
-/// バックエンドの POST /api/v1/agent/register にホスト名を送信し、
-/// 発行されたエージェント番号（"AGT-XXXXXXXX" 形式）を返す。
+/// バックエンドの POST /api/v1/agent/register にホスト名と登録トークンを送信し、
+/// 発行されたエージェント番号（"AGT-XXXXXXXX" 形式）とAPIキーを返す。
 ///
 /// # Arguments
-/// * `api_url`  - バックエンドの API ベース URL（例: "http://localhost:8080/api/v1"）
-/// * `hostname` - エージェントが動作する PC のホスト名
+/// * `api_url`          - バックエンドの API ベース URL（例: "http://localhost:8080/api/v1"）
+/// * `hostname`         - エージェントが動作する PC のホスト名
+/// * `enrollment_token` - 管理者が発行した登録トークン（24時間有効・1回限り）
 ///
 /// # Returns
-/// 登録成功時は `Ok("AGT-XXXXXXXX")` 形式のエージェント番号、
-/// 失敗時は `Err(エラーメッセージ)` を返す。
+/// 登録成功時は `Ok(AgentRegisterResponse { agent_number, api_key })`、
+/// 失敗時（トークン不正・期限切れ・使用済み等）は `Err(エラーメッセージ)` を返す。
 #[tauri::command]
-async fn register_agent(api_url: String, hostname: String) -> Result<String, String> {
+async fn register_agent(
+    api_url: String,
+    hostname: String,
+    enrollment_token: String,
+) -> Result<AgentRegisterResponse, String> {
     let client = reqwest::Client::new();
     // URL を組み立てる（末尾スラッシュを除去してから追記）
     let url = format!("{}/agent/register", api_url.trim_end_matches('/'));
 
-    // リクエストボディ: {"hostname": "..."}
-    let body = serde_json::json!({ "hostname": hostname });
+    // リクエストボディ: {"hostname": "...", "enrollmentToken": "..."}
+    let body = serde_json::json!({
+        "hostname": hostname,
+        "enrollmentToken": enrollment_token,
+    });
 
     let response = client
         .post(&url)
@@ -584,21 +695,34 @@ async fn register_agent(api_url: String, hostname: String) -> Result<String, Str
         .map_err(|e| format!("登録エラー: {}", e))?;
 
     if response.status().is_success() {
-        // レスポンス例: {"success": true, "data": "AGT-A1B2C3D4"}
+        // レスポンス例:
+        //   {"success": true, "data": {"agentNumber": "AGT-A1B2C3D4", "apiKey": "abc123..."}}
         let json: serde_json::Value = response
             .json()
             .await
             .map_err(|e| format!("レスポンス解析エラー: {}", e))?;
 
-        // "data" フィールドからエージェント番号を取得する
-        let agent_number = json["data"]
+        let data = &json["data"];
+        let agent_number = data["agentNumber"]
             .as_str()
             .ok_or_else(|| "エージェント番号が取得できませんでした".to_string())?
             .to_string();
+        let api_key = data["apiKey"]
+            .as_str()
+            .ok_or_else(|| "APIキーが取得できませんでした".to_string())?
+            .to_string();
 
-        Ok(agent_number)
+        Ok(AgentRegisterResponse { agent_number, api_key })
     } else {
-        Err(format!("サーバーエラー: {}", response.status()))
+        // バックエンドのエラーメッセージを取得して返す
+        let status = response.status();
+        let err_body = response.text().await.unwrap_or_default();
+        // JSONエラーレスポンスからメッセージを取り出す試み
+        let err_msg = serde_json::from_str::<serde_json::Value>(&err_body)
+            .ok()
+            .and_then(|v| v["message"].as_str().map(|s| s.to_string()))
+            .unwrap_or_else(|| format!("サーバーエラー: {}", status));
+        Err(err_msg)
     }
 }
 
@@ -1196,14 +1320,16 @@ pub fn run() {
         })
         // 公開する Tauri コマンドを登録する
         .invoke_handler(tauri::generate_handler![
-            load_config,                 // application.yml から API 設定を読み込むコマンド
-            collect_pc_info,             // PC 情報収集コマンド
-            send_report,                 // バックエンド送信コマンド
-            register_agent,              // エージェント初回登録コマンド
-            load_agent_number,           // エージェント番号をファイルから読み込むコマンド
-            save_agent_number,           // エージェント番号をファイルに保存するコマンド
-            fetch_asset_acquisition_type, // 起動時に取得区分をバックエンドから取得するコマンド
-            collect_windows_update,      // WindowsUpdate 適用判定コマンド
+            load_config,                  // application.yml から API 設定を読み込むコマンド
+            collect_pc_info,              // PC 情報収集コマンド
+            send_report,                  // バックエンド送信コマンド（APIキー付き）
+            register_agent,               // エージェント初回登録コマンド（登録トークン + APIキー発行）
+            load_agent_number,            // エージェント番号をファイルから読み込むコマンド
+            save_agent_number,            // エージェント番号をファイルに保存するコマンド
+            load_api_key,                 // APIキーをファイルから読み込むコマンド
+            save_api_key,                 // APIキーをファイルに保存するコマンド
+            fetch_asset_acquisition_type, // 起動時に取得区分をバックエンドから取得するコマンド（APIキー付き）
+            collect_windows_update,       // WindowsUpdate 適用判定コマンド
         ])
         .run(tauri::generate_context!())
         .expect("Tauriアプリケーションの起動に失敗しました");

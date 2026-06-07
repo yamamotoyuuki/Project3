@@ -1,12 +1,29 @@
 {
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/eslint-on-ts-edit.js"
+          }
+        ]
+      }
+    ]
+  },
   "permissions": {
     "allow": [
       "Bash(grep -E \"\\\\.\\(json|md|ts|js|py|toml|yaml\\)$\")",
       "Bash(xargs grep -A5 \"mybatis\\\\|mapper-locations\")",
       "Bash(cargo check *)",
       "Bash(git add *)",
+      "Bash(git commit *)",
       "Bash(git push *)",
-      "Bash(git commit -m 'chore: .gitignoreにbackend/bin/を追加し、コンパイル済みclassファイルをgit管理から除外 *)",
+      "Bash(git status)",
+      "Bash(git diff *)",
+      "Bash(git branch *)",
+      "Bash(git log *)",
       "Read(./src/**)"
     ],
     "deny": [

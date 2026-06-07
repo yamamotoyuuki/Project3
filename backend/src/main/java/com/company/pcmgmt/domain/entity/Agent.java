@@ -23,6 +23,13 @@ public class Agent {
     /** エージェントが動作するPCのホスト名 */
     private String hostname;
 
+    /**
+     * APIキーのbcryptハッシュ
+     * <p>平文のAPIキーはDBに保存しない。登録時に一度だけエージェントへ返却する。
+     * 以降の通信でエージェントが送信したAPIキーをbcryptで照合して認証する。</p>
+     */
+    private String apiKeyHash;
+
     /** 初回登録日時 */
     private LocalDateTime createdAt;
 

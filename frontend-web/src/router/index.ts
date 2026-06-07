@@ -96,6 +96,13 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/agent-tokens',
+      name: 'AgentTokenList',
+      // エージェント登録トークン管理: ADMIN / OPERATOR がアクセス可能 (WEB_AGT0101)
+      component: () => import('@/views/WEB_AGT0101_AgentTokenView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/users',
       name: 'UserList',
       // システムユーザー管理: ADMIN のみアクセス可能 (WEB_USR0101)

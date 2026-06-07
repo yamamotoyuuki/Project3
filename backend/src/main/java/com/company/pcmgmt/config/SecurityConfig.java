@@ -71,11 +71,11 @@ public class SecurityConfig {
                 // ---- 認証不要エンドポイント ----
                 // ログイン・ログアウト
                 .requestMatchers("/api/v1/auth/**").permitAll()
-                // エージェントからの情報収集（認証なしで自動実行）
+                // エージェントからの情報収集（JWT不要。APIキー認証はコントローラー層で実施）
                 .requestMatchers("/api/v1/agent/report").permitAll()
-                // エージェント初回登録（認証なしで自動実行）
+                // エージェント初回登録（JWT不要。登録トークン認証はコントローラー層で実施）
                 .requestMatchers("/api/v1/agent/register").permitAll()
-                // エージェント起動時の資産情報取得（購入/レンタル区分確認用、認証なしで自動実行）
+                // エージェント起動時の資産情報取得（JWT不要。APIキー認証はコントローラー層で実施）
                 .requestMatchers("/api/v1/agent/asset-info").permitAll()
                 // ヘルスチェック（監視ツール等からの疎通確認）
                 .requestMatchers("/actuator/health").permitAll()

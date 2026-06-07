@@ -523,3 +523,28 @@ export interface DashboardStats {
   expiredRentalsCount:    number // 期限切れレンタル件数
   licenseOverCount:       number // ライセンス超過ソフトウェア件数
 }
+
+// =====================================================
+// エージェント登録トークン
+// =====================================================
+
+/**
+ * エージェント登録トークン
+ * エージェントの初回登録に使用する1回限り・24時間有効のトークン。
+ */
+export interface EnrollmentToken {
+  id:                 number             // レコードID
+  token:              string             // トークン文字列（UUID形式）
+  expiresAt:          string             // 有効期限（ISO 8601）
+  status:             'UNUSED' | 'USED' | 'EXPIRED' // トークン状態
+  usedByAgentNumber:  string | null      // 使用したエージェント番号（使用済みの場合）
+  usedAt:             string | null      // 使用日時（使用済みの場合）
+  note:               string | null      // 発行メモ（対象PC名など）
+  createdAt:          string             // 発行日時（ISO 8601）
+}
+
+/** 登録トークン発行リクエスト */
+export interface EnrollmentTokenCreateRequest {
+  note?: string  // 発行メモ（任意）
+}
+

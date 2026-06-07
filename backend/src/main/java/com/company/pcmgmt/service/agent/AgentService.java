@@ -2,22 +2,28 @@ package com.company.pcmgmt.service.agent;
 
 import com.company.pcmgmt.api.dto.request.agent.AgentRegisterRequest;
 import com.company.pcmgmt.api.dto.request.agent.AgentReportRequest;
+import com.company.pcmgmt.api.dto.response.agent.AgentRegisterResponse;
 import com.company.pcmgmt.domain.entity.Agent;
+import com.company.pcmgmt.domain.entity.AgentEnrollmentToken;
 import com.company.pcmgmt.domain.entity.Employee;
 import com.company.pcmgmt.domain.entity.PcAcquisitionRental;
 import com.company.pcmgmt.domain.entity.PcAsset;
 import com.company.pcmgmt.domain.entity.PcHardwareInfo;
 import com.company.pcmgmt.domain.entity.RentalVendor;
+import com.company.pcmgmt.domain.mapper.agent.AgentEnrollmentTokenMapper;
 import com.company.pcmgmt.domain.mapper.agent.AgentMapper;
 import com.company.pcmgmt.domain.mapper.employee.EmployeeMapper;
 import com.company.pcmgmt.domain.mapper.rental.RentalMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
 
+import java.security.SecureRandom;
 import java.time.LocalDate;
+import java.util.Base64;
 import java.util.UUID;
 
 /**
@@ -52,17 +58,29 @@ public class AgentService {
     /** エージェント関連の DB アクセスを担うマッパー */
     private final AgentMapper agentMapper;
 
+    /** 登録トークンの DB アクセスを担うマッパー */
+    private final AgentEnrollmentTokenMapper tokenMapper;
+
     /** 社員マスタの DB アクセスを担うマッパー（未登録ユーザーの自動登録に使用） */
     private final EmployeeMapper employeeMapper;
 
     /** レンタル契約・ベンダーの DB アクセスを担うマッパー（レンタル自動登録に使用） */
     private final RentalMapper rentalMapper;
 
+    /** パスワードエンコーダー（APIキーのbcryptハッシュ化に使用） */
+    private final PasswordEncoder passwordEncoder;
+
+    /** 登録トークン検証サービス */
+    private final EnrollmentTokenService enrollmentTokenService;
+
     /**
      * エージェント報告で使用者名が employees テーブルに存在しない場合に設定する
      * ダミー社員コード（仮登録を示すプレースホルダー値）
      */
     private static final String DUMMY_EMPLOYEE_CODE = "dummyCode";
+
+    /** APIキーのバイト長（48バイト = Base64で64文字） */
+    private static final int API_KEY_BYTES = 48;
 
     // =========================================================
     // 資産情報取得（エージェント起動時）
@@ -129,25 +147,86 @@ public class AgentService {
     // =========================================================
 
     /**
-     * エージェントを新規登録してエージェント番号を返す
+     * エージェントを新規登録してエージェント番号とAPIキーを返す
      *
-     * <p>エージェントアプリの初回起動時（ローカルにエージェント番号が存在しない場合）に呼び出される。
-     * UUID の先頭 8 文字を大文字変換して "AGT-XXXXXXXX" 形式のエージェント番号を生成する。</p>
+     * <p>エージェントアプリの初回起動時（ローカルにエージェント番号が存在しない場合）に呼び出される。</p>
      *
-     * @param req エージェント初回登録リクエスト（ホスト名を含む）
-     * @return 生成したエージェント番号（例: "AGT-A1B2C3D4"）
+     * <p>処理フロー:
+     * <ol>
+     *   <li>登録トークンを検証（存在・未使用・24時間以内）</li>
+     *   <li>UUID の先頭 8 文字を大文字変換して "AGT-XXXXXXXX" 形式のエージェント番号を生成</li>
+     *   <li>48バイトのランダムなAPIキーを生成（Base64エンコードで64文字）</li>
+     *   <li>agents テーブルに新規登録</li>
+     *   <li>APIキーをbcryptハッシュ化して agents テーブルに保存</li>
+     *   <li>登録トークンを使用済みにマーク</li>
+     *   <li>エージェント番号と平文APIキーをレスポンスとして返す</li>
+     * </ol>
+     * </p>
+     *
+     * @param req エージェント初回登録リクエスト（ホスト名・登録トークンを含む）
+     * @return エージェント番号と平文APIキーを含むレスポンス
+     * @throws IllegalArgumentException 登録トークンが無効・使用済み・期限切れの場合
      */
     @Transactional
-    public String register(AgentRegisterRequest req) {
+    public AgentRegisterResponse register(AgentRegisterRequest req) {
+        // ---- ① 登録トークンの検証 ----
+        // トークンが null または空文字の場合も InvalidArgumentException をスローする
+        if (req.getEnrollmentToken() == null || req.getEnrollmentToken().isBlank()) {
+            throw new IllegalArgumentException("登録トークンが指定されていません");
+        }
+        AgentEnrollmentToken enrollmentToken = enrollmentTokenService.validateToken(req.getEnrollmentToken());
+
+        // ---- ② エージェント番号を生成 ----
         // UUID の先頭 8 文字（ハイフン除去後）を大文字で使用して一意なエージェント番号を生成
         String uuid8 = UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase();
         String agentNumber = "AGT-" + uuid8;
 
-        // agents テーブルに新規登録
+        // ---- ③ APIキーを生成（48バイト乱数 → Base64エンコード = 64文字） ----
+        // SecureRandom を使用することで暗号学的に安全な乱数を生成する
+        byte[] keyBytes = new byte[API_KEY_BYTES];
+        new SecureRandom().nextBytes(keyBytes);
+        String apiKey = Base64.getUrlEncoder().withoutPadding().encodeToString(keyBytes);
+
+        // ---- ④ agents テーブルに新規登録 ----
         agentMapper.insertAgent(agentNumber, req.getHostname());
 
-        log.info("エージェント新規登録: agentNumber={}, hostname={}", agentNumber, req.getHostname());
-        return agentNumber;
+        // ---- ⑤ APIキーをbcryptハッシュ化して保存（平文はDBに保存しない） ----
+        String apiKeyHash = passwordEncoder.encode(apiKey);
+        agentMapper.updateApiKeyHash(agentNumber, apiKeyHash);
+
+        // ---- ⑥ 登録トークンを使用済みにマーク（再利用防止） ----
+        tokenMapper.markAsUsed(req.getEnrollmentToken(), agentNumber);
+
+        log.info("エージェント新規登録完了: agentNumber={}, hostname={}, tokenId={}",
+            agentNumber, req.getHostname(), enrollmentToken.getId());
+
+        // ---- ⑦ エージェント番号と平文APIキーを返す（APIキーはこの一度だけ平文で返却） ----
+        return new AgentRegisterResponse(agentNumber, apiKey);
+    }
+
+    // =========================================================
+    // APIキー検証（report / asset-info エンドポイントで使用）
+    // =========================================================
+
+    /**
+     * エージェント番号とAPIキーの組み合わせを検証する
+     *
+     * <p>Authorization ヘッダーから取り出したAPIキーを、DB に保存された
+     * bcryptハッシュと照合する。</p>
+     *
+     * @param agentNumber エージェント番号（リクエストから取得）
+     * @param apiKey      APIキー平文（Authorization: Bearer {apiKey} から取得）
+     * @throws IllegalArgumentException 認証失敗の場合（APIキー不正・エージェント番号不存在）
+     */
+    public void validateApiKey(String agentNumber, String apiKey) {
+        if (agentNumber == null || agentNumber.isBlank() || apiKey == null || apiKey.isBlank()) {
+            throw new IllegalArgumentException("エージェント番号またはAPIキーが指定されていません");
+        }
+        String storedHash = agentMapper.findApiKeyHashByAgentNumber(agentNumber);
+        if (storedHash == null || !passwordEncoder.matches(apiKey, storedHash)) {
+            log.warn("APIキー認証失敗: agentNumber={}", agentNumber);
+            throw new IllegalArgumentException("APIキーが無効です");
+        }
     }
 
     // =========================================================

@@ -53,6 +53,7 @@ import iconLoan      from '@/image/icon-loan.svg'
 import iconRental    from '@/image/icon-rental.svg'
 import iconSoftware  from '@/image/icon-software.svg'
 import iconSettings  from '@/image/icon-settings.svg'
+import iconToken     from '@/image/icon-token.svg'
 
 const authStore = useAuthStore()
 const router = useRouter()
@@ -77,6 +78,10 @@ const navItems = computed(() => {
     { to: '/rentals',    icon: iconRental,    label: 'レンタル管理' },
     { to: '/software',   icon: iconSoftware,  label: 'ソフトウェア' },
   ]
+  // ADMIN または IT_STAFF（isItStaff）は登録トークン管理を表示する
+  if (authStore.isItStaff) {
+    items.push({ to: '/agent-tokens', icon: iconToken, label: '登録トークン' })
+  }
   if (authStore.isAdmin) {
     items.push({ to: '/users', icon: iconSettings, label: 'ユーザー管理' })
   }

@@ -369,15 +369,6 @@ function formatDateTime(v: string | null): string {
   })
 }
 
-/**
- * YYYY-MM-DD 形式の日付文字列を日本語表記に変換する（年月日のみ）
- * @param v - YYYY-MM-DD 形式の日付文字列（または null）
- */
-function formatDate(v: string | null): string {
-  if (!v) return '—'
-  return new Date(v + 'T00:00:00').toLocaleDateString('ja-JP')
-}
-
 // ---- 返却確認ダイアログ ----
 
 /** 返却登録 確認ダイアログの表示フラグ */

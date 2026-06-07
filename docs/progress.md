@@ -215,15 +215,101 @@
 
 ---
 
+---
+
+## ✅ エージェント認証 フェーズ2 完了（2026-06-07）
+
+### 作業内容: 登録トークン（Enrollment Token）+ デバイス固有APIキー方式の実装
+
+#### バックエンド
+- [x] `V13__add_enrollment_token_and_api_key.sql`: agent_enrollment_tokens テーブル新設、agents に api_key_hash カラム追加
+- [x] `AgentEnrollmentToken.java`: エンティティ新規作成
+- [x] `Agent.java`: apiKeyHash フィールド追加
+- [x] `AgentEnrollmentTokenMapper.java` + `AgentEnrollmentTokenMapper.xml`: insert / findByToken / markAsUsed / findAll / deleteById
+- [x] `AgentMapper.java` + `AgentMapper.xml`: updateApiKeyHash / findApiKeyHashByAgentNumber 追加
+- [x] `AgentRegisterRequest.java`: enrollmentToken フィールド追加
+- [x] `AgentRegisterResponse.java`: 新規作成（agentNumber + apiKey）
+- [x] `EnrollmentTokenRequest.java` / `EnrollmentTokenResponse.java`: 新規作成
+- [x] `EnrollmentTokenService.java`: issue / validateToken / findAll / deleteById / toResponse（状態判定）
+- [x] `AgentService.java`: register() をトークン検証→AGT番号発行→APIキー生成→bcryptハッシュ保存→トークン消費に刷新、validateApiKey() 追加
+- [x] `AgentController.java`: register / report / asset-info エンドポイントに APIキー検証（Bearer）追加
+- [x] `EnrollmentTokenController.java`: POST/GET/DELETE /api/v1/agent-tokens エンドポイント新規作成
+- [x] `JwtTokenProvider.java`: getUserId() メソッド追加
+- [x] `SecurityConfig.java`: agent-tokens エンドポイントのコメント整理
+
+#### フロントエンド（管理画面）
+- [x] `icon-token.svg`: 鍵アイコン画像追加（imageフォルダ規約準拠）
+- [x] `AppLayout.vue`: 登録トークン管理ナビアイテム追加（ADMIN/OPERATOR 表示）
+- [x] `router/index.ts`: /agent-tokens ルート追加
+- [x] `api/agentTokens.ts`: issue / findAll / delete API クライアント新規作成
+- [x] `types/index.ts`: EnrollmentToken / EnrollmentTokenCreateRequest インターフェース追加
+- [x] `WEB_AGT0101_AgentTokenView.vue`: トークン発行・一覧・削除画面新規作成
+
+#### エージェント（Tauri）
+- [x] `lib.rs`: ApiSection に enrollment_token フィールド追加、AgentRegisterResponse 構造体追加、AGENT_API_KEY_FILE 定数追加、load_api_key / save_api_key コマンド追加、register_agent を enrollment_token 対応に変更、send_report / fetch_asset_acquisition_type に api_key パラメータ追加
+- [x] `App.vue`: ApiConfig に enrollment_token フィールド追加、apiKey ref 追加、registerAgent() をトークン送信・APIキー保存に刷新、fetchAcquisitionType() に apiKey 追加、sendReport() に apiKey 追加、onMounted に load_api_key 追加、onRegisterConfirm() にエラーハンドリング追加
+
+#### セキュリティ設計
+- トークン: UUID（ハイフン除去）、24時間有効、1回限り使用
+- APIキー: 48バイト SecureRandom → Base64URL（パディングなし）= 64文字
+- APIキー保存: bcryptハッシュをDB保存（平文は返却時のみ）
+- エージェント端末: .agent_key 隠しファイルに平文保存
+
+---
+
+---
+
+## ✅ エージェント バグ修正群（2026-06-07）
+
+### 修正1: application.yml の enrollment_token → UI 入力方式に変更
+- `agent/src-tauri/src/lib.rs`: ApiSection に enrollment_token フィールド追加（`#[serde(default)]`）、フォールバック時に enrollment_token: None を設定
+- `agent/src/App.vue`: モーダルに登録トークン入力欄追加、enrollmentTokenInput ref・registerAgent() 引数化
+
+### 修正2: 登録モーダルでトークンが空と判定されるバグ
+- 原因: closeRegisterModal() が enrollmentTokenInput をリセットした後に registerAgent() が値を読んでいた
+- 修正: const token = enrollmentTokenInput.value.trim() でモーダルを閉じる前に退避
+
+### 修正3: 登録結果を中央ポップアップ表示に変更
+- registerPopup ref・showRegisterPopup()・closeRegisterPopup() 追加
+- `.register-popup-overlay` / `.register-popup-content` スタイル追加
+
+### 修正4: エージェントID未取得時のUI制限
+- PC情報タブ・送信タブを v-if="agentNumber" で非表示に変更
+- WindowsUpdate ボタンを :disabled="!agentNumber" に変更
+- currentView 初期値を 'settings' に変更
+- onMounted: agentNumber 確認後のみ collectInfo() 実行
+
+### 修正5: 未登録 PC のlocalStorage 残存値をクリア
+- clearSettings() 関数追加（localStorage + settings ref 両方クリア）
+- onMounted で agentNumber 未取得時に clearSettings() 呼び出し
+
+### 修正6: TypeScript/Rust serde キー不一致（camelCase 修正）
+- Rust AgentRegisterResponse は `#[serde(rename = "agentNumber")]` / `#[serde(rename = "apiKey")]`
+- TS 型を `{ agentNumber: string; apiKey: string }` に修正
+- result.agent_number → result.agentNumber、result.api_key → result.apiKey
+
+### 修正7: 未登録PC での send_report 400 エラー（根本原因修正）
+- 原因: 未登録状態では onMounted の collectInfo() がスキップされ pcInfo.value = null。
+         registerAgent() 内で `if (!pcInfo.value) return` がサイレントリターンし、
+         agentNumber/apiKey が設定されないまま sendReport() が呼ばれ Bearer トークンが空で 400。
+- 修正:
+  - `App.vue` の onRegisterConfirm(): registerAgent() 呼び出し前に `if (!pcInfo.value)` 時は
+    `pcInfo.value = await invoke<PcInfo>('collect_pc_info')` でホスト名を先取得
+  - `App.vue` の registerAgent(): サイレントリターンを `throw new Error(...)` に変更
+    （呼び出し元で成功と誤判定されないようにする）
+
+---
+
 ## 次セッションへの引き継ぎ
 
-**最後に完了したステップ**: codeChange01 完全完了
+**最後に完了したステップ**: エージェント send_report 400 エラーの根本原因修正完了
 
 ### 残り課題（オプション）
 1. **操作ログ閲覧 UI**: 管理者向けに /admin/logs 画面追加
-2. **テスト拡充**: LoanService / RentalService の単体テスト
+2. **テスト拡充**: LoanService / RentalService / EnrollmentTokenService の単体テスト
 3. **E2E テスト**: Playwright などでブラウザテスト
 4. **本番設定**: 環境変数の整理、Docker Compose 本番設定
+5. **要件定義書更新**: 13.1.2 に登録トークン + APIキー方式を追記（任意）
 
 ### 中断時の注意点
 - application-dev.yml は localhost:3306/project3 (root/pass) 接続
@@ -232,4 +318,5 @@
 - backend コンパイル: `$env:JAVA_HOME = "..."; .\gradlew.bat compileJava`
 - ログインパスワード: admin / Admin@1234
 - エクスポート URL: /api/v1/export/assets.csv, /api/v1/export/assets.xlsx, /api/v1/export/loans.csv
-- Flyway マイグレーション: V2（user_name カラム）、V3（agents/agent_history テーブル、pc_assets.agent_number カラム）が適用済みであること
+- Flyway マイグレーション: V13 が追加済み（agent_enrollment_tokens テーブル + agents.api_key_hash カラム）
+- エージェント登録フロー: 管理者が Web 画面でトークン発行 → エージェントアプリの「新規登録」モーダルに直接入力 → 登録ボタン

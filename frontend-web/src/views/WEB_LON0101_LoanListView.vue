@@ -216,7 +216,7 @@ const activeEmployees = ref<Employee[]>([])
 
 async function loadSelects() {
   const [aRes, eRes] = await Promise.all([
-    assetsApi.findAll({ size: 200, status: 'IN_STORAGE' }),
+    assetsApi.findAll({ size: 200, statuses: 'IN_STORAGE' }),
     employeesApi.findActiveList(),
   ])
   availableAssets.value = aRes.data.content

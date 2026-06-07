@@ -230,6 +230,32 @@
     </select>
 
     <!-- ============================================================ -->
+    <!-- APIキー管理 (agents テーブル)                                -->
+    <!-- ============================================================ -->
+
+    <!--
+        エージェントの api_key_hash を更新する（初回登録時に呼び出す）
+        - 平文の API キーはバックエンドで生成し bcrypt ハッシュ化後にここで保存する
+        - 平文は絶対に DB に保存しない（エージェントへのレスポンスで一度だけ返却）
+    -->
+    <update id="updateApiKeyHash">
+        UPDATE agents
+        SET api_key_hash = #{apiKeyHash}
+        WHERE agent_number = #{agentNumber}
+    </update>
+
+    <!--
+        エージェント番号で api_key_hash を取得する（リクエスト検証に使用）
+        - report / asset-info エンドポイントで Authorization ヘッダーの API キーを検証する際に使用
+    -->
+    <select id="findApiKeyHashByAgentNumber" resultType="java.lang.String">
+        SELECT api_key_hash
+        FROM agents
+        WHERE agent_number = #{agentNumber}
+        LIMIT 1
+    </select>
+
+    <!-- ============================================================ -->
     <!-- PC資産更新 (pc_assets テーブル)                              -->
     <!-- V4 変更: WHERE 条件を id → agent_number に変更               -->
     <!-- ============================================================ -->

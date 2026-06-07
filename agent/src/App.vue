@@ -39,8 +39,9 @@
 
     <!-- =====================
          タブ: PC情報表示（画面A）
+         エージェント番号未取得時は非表示（表示・操作ともに不可）
          ===================== -->
-    <div v-if="currentView === 'info'" class="view-panel">
+    <div v-if="currentView === 'info' && agentNumber" class="view-panel">
       <h2>PC情報</h2>
       <!-- 収集済みの場合のみ情報グリッドを表示 -->
       <div v-if="pcInfo" class="info-grid">
@@ -96,8 +97,9 @@
 
     <!-- =====================
          タブ: 送信（画面B）
+         エージェント番号未取得時は非表示（表示・操作ともに不可）
          ===================== -->
-    <div v-if="currentView === 'send'" class="view-panel">
+    <div v-if="currentView === 'send' && agentNumber" class="view-panel">
       <h2>情報送信</h2>
 
       <!-- 送信前に資産番号の設定を促す警告 -->
@@ -140,16 +142,30 @@
         <span class="hint-text">※ application.yml で管理者が設定します</span>
       </div> -->
 
-      <!-- 設置場所入力（pc_assetsのlocationカラムに登録される） -->
+      <!-- 設置場所入力（pc_assetsのlocationカラムに登録される）必須 -->
       <div class="form-group">
-        <label>設置場所</label>
-        <input v-model="settings.location" placeholder="3F-営業部" />
+        <label>設置場所 <span class="required-mark">*必須</span></label>
+        <input
+          v-model="settings.location"
+          placeholder="3F-営業部"
+          :class="{ 'input-error': validationErrors.location }"
+          @input="validationErrors.location = false"
+        />
+        <!-- バリデーションエラーメッセージ（保存ボタン押下後に表示） -->
+        <span v-if="validationErrors.location" class="error-text">設置場所を入力してください</span>
       </div>
 
-      <!-- 使用者名入力（pc_assetsのassigned_employee_idに紐付けられる） -->
+      <!-- 使用者名入力（pc_assetsのassigned_employee_idに紐付けられる）必須 -->
       <div class="form-group">
-        <label>使用者名</label>
-        <input v-model="settings.userName" placeholder="山田 太郎" />
+        <label>使用者名 <span class="required-mark">*必須</span></label>
+        <input
+          v-model="settings.userName"
+          placeholder="山田 太郎"
+          :class="{ 'input-error': validationErrors.userName }"
+          @input="validationErrors.userName = false"
+        />
+        <!-- バリデーションエラーメッセージ（保存ボタン押下後に表示） -->
+        <span v-if="validationErrors.userName" class="error-text">使用者名を入力してください</span>
       </div>
 
       <!--
@@ -197,7 +213,8 @@
       <div class="form-group win-update-section">
         <!-- ボタン＋件数メッセージを横並びで表示 -->
         <div class="win-update-row">
-          <button class="btn-primary btn-win-update" :disabled="isWinUpdateLoading" @click="runWindowsUpdateJudgment">
+          <!-- エージェント番号未取得時または処理中は非活性 -->
+          <button class="btn-primary btn-win-update" :disabled="isWinUpdateLoading || !agentNumber" @click="runWindowsUpdateJudgment">
             WindowsUpdate 適用判定
           </button>
           <!-- ボタン横のステータスメッセージ（処理中 / 件数 / エラー）          -->
@@ -258,6 +275,23 @@
     </div>
 
     <!-- =====================
+         登録結果 ポップアップ（画面中央表示）
+         成功時: 3秒後に自動フェードアウト
+         失敗時: 「閉じる」ボタンを押すまで表示、またはオーバーレイクリックで閉じる
+         ===================== -->
+    <div v-if="registerPopup.type" class="register-popup-overlay" @click.self="closeRegisterPopup">
+      <div class="register-popup-content" :class="[registerPopup.type, { fading: isRegisterPopupFading }]">
+        <!-- 結果アイコン（imageフォルダより読み込み） -->
+        <img v-if="registerPopup.type === 'success'" src="./image/icon-success.svg" class="register-popup-icon" alt="success" />
+        <img v-else-if="registerPopup.type === 'error'" src="./image/icon-error.svg" class="register-popup-icon" alt="error" />
+        <!-- メッセージ本文（複数行対応） -->
+        <p class="register-popup-message">{{ registerPopup.message }}</p>
+        <!-- 閉じるボタン（成功・失敗ともに表示） -->
+        <button class="register-popup-close" @click="closeRegisterPopup">閉じる</button>
+      </div>
+    </div>
+
+    <!-- =====================
          新規登録 確認モーダル
          ===================== -->
     <div v-if="showNewRegisterWarning" class="modal-overlay" @click.self="closeRegisterModal">
@@ -275,8 +309,20 @@
           <span>個人所有のPCではありません</span>
         </label>
 
-        <!-- チェックされた場合のみ「登録」ボタンを表示 -->
-        <button v-if="confirmedNotPersonal" class="btn-primary" @click="onRegisterConfirm">登録</button>
+        <!-- 登録トークン入力（管理者から発行されたトークンを画面から入力する） -->
+        <div class="modal-token-group">
+          <label class="modal-token-label">登録トークン</label>
+          <input
+            v-model="enrollmentTokenInput"
+            type="text"
+            placeholder="管理者から発行されたトークンを入力"
+            class="modal-token-input"
+          />
+          <span class="hint-text">管理者から発行された登録トークンを入力してください</span>
+        </div>
+
+        <!-- チェック済み かつ トークン入力済みの場合のみ「登録」ボタンを表示 -->
+        <button v-if="confirmedNotPersonal && enrollmentTokenInput.trim()" class="btn-primary" @click="onRegisterConfirm">登録</button>
 
         <!-- キャンセルボタン（常に表示） -->
         <button class="btn-cancel" @click="closeRegisterModal">キャンセル</button>
@@ -289,15 +335,16 @@
     <nav class="bottom-nav">
       <!-- アクティブなタブは active クラスでハイライト -->
       <!-- 各タブのアイコンはimageフォルダの画像ファイルを使用（規約準拠） -->
-      <button :class="{ active: currentView === 'info' }" @click="currentView = 'info'">
+      <!-- PC情報・送信タブはエージェント番号取得済みの場合のみ表示する -->
+      <button v-if="agentNumber" :class="{ active: currentView === 'info' }" @click="navigateToInfo">
         <img src="./image/icon-pc.svg" class="nav-tab-icon" alt="PC情報" />
         PC情報
       </button>
-      <button :class="{ active: currentView === 'send' }" @click="currentView = 'send'">
+      <button v-if="agentNumber" :class="{ active: currentView === 'send' }" @click="navigateToSend">
         <img src="./image/icon-send.svg" class="nav-tab-icon" alt="送信" />
         送信
       </button>
-      <button :class="{ active: currentView === 'settings' }" @click="currentView = 'settings'">
+      <button :class="{ active: currentView === 'settings' }" @click="navigateToSettings">
         <img src="./image/icon-settings.svg" class="nav-tab-icon" alt="設定" />
         設定
       </button>
@@ -355,6 +402,11 @@
   interface ApiConfig {
     /** バックエンドAPIのベースURL（例: "http://localhost:8080/api/v1"） */
     base_url: string
+    /**
+     * エージェント初回登録トークン（application.yml の agent.api.enrollment-token）
+     * 管理者が発行したトークンを設定する。初回登録後は不要（APIキーに切り替わる）。
+     */
+    enrollment_token?: string
   }
 
   /**
@@ -369,8 +421,12 @@
     isReturned: boolean
   }
 
-  /** 現在表示中のタブ */
-  const currentView = ref < View > ('info')
+  /**
+   * 現在表示中のタブ
+   * 初期値は 'settings'（エージェント番号未取得時は設定タブのみ使用可能）。
+   * 起動時にエージェント番号が確認できた場合は onMounted 内で 'info' に切り替える。
+   */
+  const currentView = ref<View>('settings')
 
   /** 収集済み PC 情報（null = 未収集） */
   const pcInfo = ref < PcInfo | null > (null)
@@ -391,6 +447,14 @@
    * 例: "AGT-A1B2C3D4" / null = 未取得（初回起動またはバックエンド未起動時）
    */
   const agentNumber = ref < string | null > (null) // 起動時に load_agent_number で読み込む
+
+  /**
+   * APIキー（初回登録時にバックエンドが発行。アプリのローカルデータディレクトリに永続化）
+   * - Windows: %LOCALAPPDATA%\{app-name}\.agent_key（隠しファイル属性付き）
+   * - report / asset-info API呼び出し時に Authorization: Bearer {apiKey} として付与する
+   * - null = 未取得（初回起動時。登録後に設定される）
+   */
+  const apiKey = ref < string | null > (null) // 起動時に load_api_key で読み込む
 
   /**
    * PC情報取得ステータスメッセージ（type: 'success' | 'error' | ''）
@@ -602,6 +666,72 @@
   const confirmedNotPersonal = ref(false)
 
   /**
+   * 登録トークン入力値（モーダル内の入力欄に利用者が直接入力する）
+   * application.yml から読み込む方式を廃止し、画面入力方式に変更。
+   * モーダルを開くたびに空文字にリセットする。
+   */
+  const enrollmentTokenInput = ref('')
+
+  /**
+   * 登録結果ポップアップの表示状態
+   * type: 'success' = 登録成功（緑）、'error' = 登録失敗（赤）、'' = 非表示
+   * 成功時は 3 秒後に自動フェードアウト、失敗時は手動で閉じるまで表示する。
+   */
+  const registerPopup = ref<{ type: 'success' | 'error' | ''; message: string }>({
+    type: '',
+    message: '',
+  })
+
+  /** 登録結果ポップアップのフェードアウト中フラグ */
+  const isRegisterPopupFading = ref(false)
+
+  /** 登録結果ポップアップのフェードアウトタイマー参照（連続呼び出し時のキャンセルに使用） */
+  let registerPopupTimer: ReturnType<typeof setTimeout> | null = null
+
+  /**
+   * 登録結果ポップアップを表示する
+   * - 成功時: 2.5 秒後にフェードアウト開始（CSS 0.5 秒で合計 3 秒）
+   * - 失敗時: 「閉じる」ボタンまたはオーバーレイクリックまで表示し続ける
+   *
+   * @param type    - 'success' または 'error'
+   * @param message - 表示するメッセージ文字列
+   */
+  function showRegisterPopup(type: 'success' | 'error', message: string) {
+    // 既存タイマーをキャンセルして状態をリセットする
+    if (registerPopupTimer !== null) {
+      clearTimeout(registerPopupTimer)
+      registerPopupTimer = null
+    }
+    isRegisterPopupFading.value = false
+    registerPopup.value = { type, message }
+
+    // 成功時のみ自動フェードアウトタイマーを開始する
+    if (type === 'success') {
+      registerPopupTimer = setTimeout(() => {
+        isRegisterPopupFading.value = true
+        registerPopupTimer = setTimeout(() => {
+          registerPopup.value = { type: '', message: '' }
+          isRegisterPopupFading.value = false
+          registerPopupTimer = null
+        }, 500)
+      }, 2500)
+    }
+  }
+
+  /**
+   * 登録結果ポップアップを閉じる（「閉じる」ボタンまたはオーバーレイクリック時）
+   * タイマーもキャンセルして完全にリセットする。
+   */
+  function closeRegisterPopup() {
+    if (registerPopupTimer !== null) {
+      clearTimeout(registerPopupTimer)
+      registerPopupTimer = null
+    }
+    registerPopup.value = { type: '', message: '' }
+    isRegisterPopupFading.value = false
+  }
+
+  /**
    * バックエンドから取得した取得区分
    * - 文字列（"PURCHASE" / "RENTAL"）: バックエンドに設定済み → 選択欄を読み取り専用にする
    * - null: 取得できなかった（資産未登録 / バックエンド未起動）→ 選択欄を活性化する
@@ -619,8 +749,8 @@
   /**
    * 設定値（localStorage に永続化）
    * assetNumber:     資産番号（例: "PC-00123"）
-   * location:        設置場所（pc_assets.location に登録）
-   * userName:        使用者名（社員名と照合して pc_assets.assigned_employee_id に登録）
+   * location:        設置場所（pc_assets.location に登録）必須
+   * userName:        使用者名（社員名と照合して pc_assets.assigned_employee_id に登録）必須
    * acquisitionType: 購入/レンタル区分（バックエンドから取得できなかった場合のユーザー選択値）
    *
    * ※ API URL は application.yml で管理するため settings には含めない
@@ -630,6 +760,16 @@
     location: localStorage.getItem('location') || '',
     userName: localStorage.getItem('userName') || '',
     acquisitionType: localStorage.getItem('acquisitionType') || '',
+  })
+
+  /**
+   * フィールドごとのバリデーションエラーフラグ
+   * - 保存ボタン押下時に必須チェックが失敗した場合に true になる
+   * - ユーザーが入力を開始した時点で false にリセットする（input イベント）
+   */
+  const validationErrors = ref({
+    location: false, // 設置場所が未入力の場合に true
+    userName: false, // 使用者名が未入力の場合に true
   })
 
   /**
@@ -705,31 +845,47 @@
   }
 
   /**
-   * エージェントをバックエンドに初回登録してエージェント番号を取得し、ファイルに保存する
+   * エージェントをバックエンドに初回登録してエージェント番号とAPIキーを取得し、ファイルに保存する
    *
    * ファイルにエージェント番号が存在しない場合のみ呼び出す。
-   * 取得したエージェント番号は save_agent_number コマンドでローカルファイルに永続化する。
-   * バックエンド未起動などでエラーが発生した場合は警告ログのみ出力し続行する。
+   * 引数で受け取った登録トークン（onRegisterConfirm がモーダルを閉じる前に退避した値）を
+   * バックエンドに送信し、返却されたエージェント番号とAPIキーをローカルファイルに永続化する。
+   *
+   * ※ closeRegisterModal() が enrollmentTokenInput をリセットするため、
+   *   ref を直接読まずに引数で受け取る方式にしている。
+   * ※ onRegisterConfirm() 側で事前に pcInfo を収集してからこの関数を呼び出すこと。
+   *
+   * @param enrollmentToken - 利用者がモーダル入力欄に入力した登録トークン（呼び出し元で退避済み）
+   * @throws PC情報未収集・トークン未入力・不正・期限切れ・バックエンド未起動の場合にエラーをスローする
    */
-  async function registerAgent() {
-    if (!pcInfo.value) return  // PC情報が収集できていない場合はスキップ
-    try {
-      // バックエンドにホスト名を送信してエージェント番号を発行してもらう
-      const number = await invoke < string > ('register_agent', {
-        apiUrl: apiUrl.value,
-        hostname: pcInfo.value.hostname,
-      })
-
-      // 発行されたエージェント番号をローカルファイルに永続保存する
-      // %LOCALAPPDATA%\{app-name}\.agent_id に保存（Windowsでは隠し属性付き）
-      await invoke('save_agent_number', { agentNumber: number })
-
-      agentNumber.value = number
-      console.info('エージェント番号を取得・保存しました:', number)
-    } catch (e) {
-      // バックエンド未起動等でも起動は継続する（次回起動時に再試行される）
-      console.warn('エージェント番号の取得に失敗しました（バックエンドが起動していない可能性）:', e)
+  async function registerAgent(enrollmentToken: string) {
+    // PC情報が収集できていない場合はエラーをスローする
+    // （サイレントリターンすると呼び出し元で成功と誤判定されるため、必ず例外で通知する）
+    if (!pcInfo.value) {
+      throw new Error('PC情報の収集に失敗しました。再度お試しください。')
     }
+
+    if (!enrollmentToken) {
+      throw new Error('登録トークンを正しく入力してください。')
+    }
+
+    // バックエンドに登録トークンとホスト名を送信してエージェント番号とAPIキーを発行してもらう
+    // Rust の AgentRegisterResponse は #[serde(rename = "agentNumber")] / #[serde(rename = "apiKey")] で
+    // キャメルケースにリネームして JSON 出力するため、TypeScript 型もキャメルケースで定義する。
+    const result = await invoke<{ agentNumber: string; apiKey: string }>('register_agent', {
+      apiUrl: apiUrl.value,
+      hostname: pcInfo.value.hostname,
+      enrollmentToken,
+    })
+
+    // 発行されたエージェント番号をローカルファイルに永続保存する
+    await invoke('save_agent_number', { agentNumber: result.agentNumber })
+    // 発行されたAPIキーをローカルファイルに永続保存する（隠しファイル属性付き）
+    await invoke('save_api_key', { apiKey: result.apiKey })
+
+    agentNumber.value = result.agentNumber
+    apiKey.value      = result.apiKey
+    console.info('エージェント番号・APIキーを取得・保存しました:', result.agentNumber)
   }
 
   /**
@@ -752,6 +908,7 @@
       // Rust コマンドが AssetInfo | null を返す（取得区分 + 返却済みフラグ）
       const assetInfo = await invoke < AssetInfo | null > ('fetch_asset_acquisition_type', {
         apiUrl: apiUrl.value,
+        apiKey: apiKey.value ?? '',             // APIキー（Authorization: Bearer ヘッダーに付与）
         agentNumber: agentNumber.value ?? '',   // 未取得時は空文字（バックエンド側でスキップ）
         hostname: pcInfo.value?.hostname ?? '', // フォールバック検索用ホスト名
       })
@@ -824,8 +981,8 @@
         acquisition_type: acquisitionTypeToSend,       // 選択値を送信、未選択・設定済みはnull
       }
 
-      // Rust コマンドでバックエンド API へ POST 送信
-      await invoke('send_report', { apiUrl: apiUrl.value, report })
+      // Rust コマンドでバックエンド API へ POST 送信（APIキーを Authorization: Bearer として送信）
+      await invoke('send_report', { apiUrl: apiUrl.value, apiKey: apiKey.value ?? '', report })
 
       // 送信成功後の処理:
       // 取得区分を送信した場合のみ、バックエンドから再取得して項目に反映する
@@ -849,44 +1006,147 @@
     }
   }
 
+  // =====================================================
+  // タブナビゲーション関数
+  // 規約: 画面遷移は必ず関数に切り出す（@click に直接代入しない）
+  // =====================================================
+
+  /**
+   * PC情報タブへ遷移する（エージェント番号取得済み時のみ BottomNav に表示される）
+   */
+  function navigateToInfo() {
+    currentView.value = 'info'
+  }
+
+  /**
+   * 送信タブへ遷移する（エージェント番号取得済み時のみ BottomNav に表示される）
+   */
+  function navigateToSend() {
+    currentView.value = 'send'
+  }
+
+  /**
+   * 設定タブへ遷移する（常に表示される）
+   */
+  function navigateToSettings() {
+    currentView.value = 'settings'
+  }
+
+  /**
+   * 設定値（資産番号・設置場所・使用者名・購入区分）を localStorage とリアクティブ変数から消去する。
+   *
+   * 呼び出しタイミング:
+   *   - 起動時にエージェント番号が未取得だった場合
+   *   - 読み込みエラーが発生した場合
+   *
+   * localStorage と settings ref を両方クリアすることで、
+   * 前回登録時の残存値が設定フォームに表示されるのを防ぐ。
+   */
+  function clearSettings() {
+    // localStorage から設定値を削除する
+    localStorage.removeItem('assetNumber')
+    localStorage.removeItem('location')
+    localStorage.removeItem('userName')
+    localStorage.removeItem('acquisitionType')
+
+    // リアクティブな settings ref も空文字にリセットする（画面の入力欄に反映される）
+    settings.value.assetNumber    = ''
+    settings.value.location       = ''
+    settings.value.userName       = ''
+    settings.value.acquisitionType = ''
+
+    console.info('設定値をクリアしました（エージェント番号未取得）')
+  }
+
   /**
    * 「新規登録」ボタン押下時のハンドラ
    *
    * エージェント番号が未取得の状態で呼び出される。
-   * 確認モーダルを表示してチェックボックス＋登録ボタンの確認フローを開始する。
+   * 設置場所・使用者名の必須チェックを行い、未入力の場合はモーダルを開かずにエラーを表示する。
+   * 必須チェック通過後に確認モーダルを表示して
+   * チェックボックス＋トークン入力＋登録ボタンの確認フローを開始する。
    */
   function onNewRegisterClick() {
-    // モーダルを開く前にチェックボックスをリセットする
+    // 必須項目チェック: 設置場所・使用者名が未入力の場合はモーダルを開かずにエラーを表示する
+    const locationEmpty = !settings.value.location.trim()
+    const userNameEmpty = !settings.value.userName.trim()
+
+    if (locationEmpty || userNameEmpty) {
+      // エラーフラグをセットしてフィールドを赤枠表示にする
+      validationErrors.value.location = locationEmpty
+      validationErrors.value.userName = userNameEmpty
+
+      // 最初に未入力だったフィールドのエラーメッセージを表示する
+      const errorMsg = locationEmpty
+        ? '設置場所は必須です。入力してからもう一度「新規登録」を押してください。'
+        : '使用者名は必須です。入力してからもう一度「新規登録」を押してください。'
+      sendStatus.value = { type: 'error', message: errorMsg }
+      startSendStatusFadeTimer()
+      return // 必須チェック失敗: モーダルを開かずに中断する
+    }
+
+    // 必須チェック通過: モーダルを開く前にチェックボックスとトークン入力をリセットする
     confirmedNotPersonal.value = false
+    enrollmentTokenInput.value = ''
     showNewRegisterWarning.value = true
   }
 
   /**
    * 確認モーダルを閉じる（キャンセルまたはオーバーレイクリック時）
    *
-   * チェックボックスもリセットして次回表示時にクリーンな状態にする。
+   * チェックボックスとトークン入力もリセットして次回表示時にクリーンな状態にする。
    */
   function closeRegisterModal() {
     showNewRegisterWarning.value = false
     confirmedNotPersonal.value = false
+    enrollmentTokenInput.value = ''
   }
 
   /**
    * 「登録」ボタン押下時のハンドラ（確認モーダル内）
    *
    * チェックボックスで個人所有でないことを確認済みの場合のみ呼ばれる。
-   * モーダルを閉じた後、エージェント番号を取得してから saveSettings() を実行する。
+   * モーダルを閉じた後、エージェント番号・APIキーを取得してから saveSettings() を実行する。
    *
    * 処理順序:
-   *   1. モーダルを閉じる
-   *   2. registerAgent() でエージェント番号をバックエンドから取得してファイルに保存する
-   *   3. saveSettings() で設定を保存し、手動送信を実行する
-   *      （この時点で agentNumber が取得済みのためレポートに agent_number が含まれる）
+   *   1. enrollmentTokenInput の値を退避する（closeRegisterModal がリセットするため必須）
+   *   2. モーダルを閉じる（enrollmentTokenInput が '' にリセットされる）
+   *   3. pcInfo が未収集の場合は collect_pc_info でホスト名を先に取得する
+   *      （エージェント未登録状態では onMounted での PC情報収集がスキップされているため必須）
+   *   4. registerAgent(token) でエージェント番号・APIキーをバックエンドから取得してファイルに保存する
+   *      - 登録トークン不正・期限切れ・バックエンド未起動の場合はエラーメッセージを表示して中断する
+   *   5. collectInfo() で PC 情報収集と取得区分取得を実行する（agentNumber 確定後）
+   *   6. saveSettings() で設定を保存し、手動送信を実行する
+   *      （この時点で agentNumber・apiKey が取得済みのためレポートに含まれる）
    */
   async function onRegisterConfirm() {
+    // モーダルを閉じる前にトークンを退避する
+    // closeRegisterModal() 内で enrollmentTokenInput.value = '' にリセットされるため、
+    // 先に値を取り出しておかないと registerAgent() に渡すトークンが空になる。
+    const token = enrollmentTokenInput.value.trim()
     closeRegisterModal()
-    // エージェント番号を取得してから送信する（取得失敗時は agentNumber = null のまま送信）
-    await registerAgent()
+    try {
+      // エージェント未登録状態では onMounted での PC情報収集がスキップされているため、
+      // registerAgent() に渡すホスト名を取得するために先に PC情報を収集する。
+      // pcInfo.value が既に設定済みの場合（再登録など）はスキップする。
+      if (!pcInfo.value) {
+        pcInfo.value = await invoke<PcInfo>('collect_pc_info')
+      }
+      // 退避したトークンを引数で渡してエージェント番号・APIキーを取得する
+      await registerAgent(token)
+      // 登録成功: 画面中央のポップアップで通知する（3 秒後に自動消去）
+      showRegisterPopup('success', 'エージェントの登録が完了しました')
+      // 登録後にPC情報収集と取得区分取得を実行する（agentNumber 確定後に正確な取得区分を取得）
+      await collectInfo()
+    } catch (e: unknown) {
+      // トークン不正・期限切れ・バックエンド未起動・PC情報収集失敗などの場合は
+      // 画面中央のポップアップでエラーを表示する（手動で閉じるまで残す）
+      const errorMessage = e instanceof Error ? e.message : String(e)
+      showRegisterPopup('error', `登録失敗:\n${errorMessage}`)
+      return
+    }
+    // 設置場所・使用者名は onNewRegisterClick で事前検証済みのため、
+    // saveSettings のバリデーションも通過する。
     await saveSettings()
   }
 
@@ -895,9 +1155,34 @@
    * アプリ再起動後も設定が引き継がれるよう永続化する。
    * 画面遷移は行わず、送信結果は設定タブ内の sendStatus で表示する。
    *
+   * 設置場所・使用者名は必須。未入力の場合はエラーを表示して送信を中断する。
+   * ※ 新規登録フローでは onNewRegisterClick で事前検証済みのため、このチェックも通過する。
+   *
    * ※ API URL は application.yml で管理するため localStorage には保存しない
    */
-  async function saveSettings() {
+  async function saveSettings(): Promise<void> {
+    // 必須項目チェック: 設置場所・使用者名の入力状態を確認する
+    const locationEmpty = !settings.value.location.trim()
+    const userNameEmpty = !settings.value.userName.trim()
+
+    // いずれかが未入力の場合はエラーを表示して送信を中断する
+    if (locationEmpty || userNameEmpty) {
+      validationErrors.value.location = locationEmpty
+      validationErrors.value.userName = userNameEmpty
+
+      // 最初に未入力だったフィールドのエラーメッセージを sendStatus に表示する
+      const errorMsg = locationEmpty
+        ? '設置場所は必須です。入力してください。'
+        : '使用者名は必須です。入力してください。'
+      sendStatus.value = { type: 'error', message: errorMsg }
+      startSendStatusFadeTimer()
+      return
+    }
+
+    // バリデーション通過時はエラーフラグをリセットする
+    validationErrors.value.location = false
+    validationErrors.value.userName = false
+
     // 設定値を localStorage に永続化（API URL は application.yml で管理するため含めない）
     localStorage.setItem('assetNumber', settings.value.assetNumber)
     localStorage.setItem('location', settings.value.location)
@@ -929,33 +1214,53 @@
     // ① application.yml から API URL を読み込む（後続の全 API 呼び出しで使用するため最初に実行）
     await loadApiConfig()
 
-    // ② PC 情報を収集する（内部で fetchAcquisitionType() も呼ぶ。ただし agentNumber 未確定のためホスト名のみで検索）
-    await collectInfo()
-
-    // ③ ローカルファイルからエージェント番号を読み込む
-    //    保存先: %LOCALAPPDATA%\{app-name}\.agent_id（Windowsの場合）
-    //    ※ ファイルが存在しない場合（初回起動）は自動登録を行わない。
-    //       ユーザーが設定タブの「新規登録」ボタンを押して確認フローを経由した場合のみ登録する。
+    // ② ローカルファイルからエージェント番号・APIキーを読み込む
+    //    ※ エージェント番号の有無によって後続処理（PC情報収集など）の実行可否を決めるため、
+    //      PC情報収集より先に実行する。
+    //    保存先: %LOCALAPPDATA%\{app-name}\.agent_id / .agent_key（Windowsの場合）
+    //    ファイルが存在しない場合（初回起動）は自動登録を行わない。
+    //    ユーザーが設定タブの「新規登録」ボタンを押して確認フローを経由した場合のみ登録する。
     try {
-      const stored = await invoke < string | null > ('load_agent_number')
+      const stored = await invoke<string | null>('load_agent_number')
       if (stored) {
-        // ファイルに保存済み → そのまま使用する
         agentNumber.value = stored
         console.info('エージェント番号をファイルから読み込みました:', stored)
       } else {
-        // ファイルなし → 自動登録はしない。agentNumber = null のまま維持する。
-        // 設定タブの「新規登録」ボタンから手動で登録してもらう。
+        // エージェント番号なし → 設定タブのみ使用可能。PC情報収集などは行わない。
+        // localStorage に前回の設定値が残っている場合はクリアして初期状態に戻す。
+        // （別PCでの再登録時や .agent_id 削除後の起動で古い値が表示されるのを防ぐ）
+        clearSettings()
         console.info('エージェント番号が未取得です。設定タブの「新規登録」から登録してください。')
       }
     } catch (e) {
-      // 読み込みエラー時も自動登録は行わない
+      // 読み込みエラー時も設定値をクリアして安全な初期状態にする
+      clearSettings()
       console.warn('エージェント番号の読み込みに失敗しました:', e)
     }
 
-    // ④ エージェント番号確定後に取得区分を再取得する
-    //    ②の fetchAcquisitionType() はホスト名のみで検索したため、
-    //    エージェント番号が揃ったここで再取得して正確な値を反映する。
-    await fetchAcquisitionType()
+    try {
+      const storedKey = await invoke<string | null>('load_api_key')
+      if (storedKey) {
+        apiKey.value = storedKey
+        console.info('APIキーをファイルから読み込みました')
+      } else {
+        console.info('APIキーが未設定です。新規登録後に保存されます。')
+      }
+    } catch (e) {
+      console.warn('APIキーの読み込みに失敗しました:', e)
+    }
+
+    // ③ エージェント番号が取得済みの場合のみ PC 情報収集・取得区分取得を実行する
+    //    エージェント番号未取得時はこれらの処理を一切行わず、設定タブで「新規登録」を促す。
+    if (agentNumber.value) {
+      // エージェント番号あり → PC情報タブへ遷移してから情報収集を開始する
+      navigateToInfo()
+      // PC情報収集（内部で fetchAcquisitionType() も実行）
+      await collectInfo()
+      // エージェント番号確定後に取得区分を再取得する（エージェント番号ベースで正確に検索）
+      await fetchAcquisitionType()
+    }
+    // エージェント番号なし → currentView は 'settings' のまま（初期値）。新規登録を待つ。
   })
 </script>
 
@@ -1135,6 +1440,31 @@
   /* 活性化時の補足テキスト（選択可能であることを示す） */
   .hint-text--active {
     color: #6366f1;
+  }
+
+  /* 必須マーク（ラベル右横に赤文字で「*必須」を表示） */
+  .required-mark {
+    font-size: 11px;
+    color: #dc2626;
+    font-weight: 600;
+    margin-left: 4px;
+    vertical-align: middle;
+  }
+
+  /* バリデーションエラー時の入力フィールド（赤ボーダー） */
+  .input-error {
+    border-color: #dc2626 !important;
+    background: #fff5f5;
+    box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.15);
+  }
+
+  /* バリデーションエラーメッセージテキスト（フィールド下に赤文字で表示） */
+  .error-text {
+    display: block;
+    font-size: 12px;
+    color: #dc2626;
+    margin-top: 4px;
+    font-weight: 500;
   }
 
   /* ==============================
@@ -1359,6 +1689,88 @@
     margin: 0;
   }
 
+  /* ==============================
+   登録結果 ポップアップ
+   ============================== */
+
+  /* 半透明オーバーレイ（クリックで閉じる） */
+  .register-popup-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 150; /* 新規登録モーダル（100）より手前 */
+    padding: 20px;
+  }
+
+  /* ポップアップ本体（白カード） */
+  .register-popup-content {
+    background: white;
+    border-radius: 12px;
+    padding: 28px 24px 20px;
+    width: 100%;
+    max-width: 300px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    /* フェードアウトアニメーション用トランジション */
+    opacity: 1;
+    transition: opacity 0.5s ease;
+  }
+
+  /* フェードアウト中（JS が付与） */
+  .register-popup-content.fading {
+    opacity: 0;
+  }
+
+  /* 成功時: 上部に緑のアクセントボーダー */
+  .register-popup-content.success {
+    border-top: 4px solid #10b981;
+  }
+
+  /* 失敗時: 上部に赤のアクセントボーダー */
+  .register-popup-content.error {
+    border-top: 4px solid #dc2626;
+  }
+
+  /* 結果アイコン画像（imageフォルダより読み込み） */
+  .register-popup-icon {
+    width: 40px;
+    height: 40px;
+  }
+
+  /* メッセージ本文 */
+  .register-popup-message {
+    margin: 0;
+    font-size: 14px;
+    text-align: center;
+    color: #374151;
+    line-height: 1.7;
+    /* \n を改行として描画する */
+    white-space: pre-line;
+  }
+
+  /* 閉じるボタン */
+  .register-popup-close {
+    background: #f3f4f6;
+    color: #374151;
+    border: 1px solid #d1d5db;
+    padding: 9px 0;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    width: 100%;
+  }
+
+  .register-popup-close:hover {
+    background: #e5e7eb;
+  }
+
   /* 新規登録ボタン（オレンジ系でアクション意図を強調） */
   .btn-register {
     background: #f59e0b;
@@ -1446,6 +1858,38 @@
     flex-shrink: 0;
     cursor: pointer;
     accent-color: #6366f1;
+  }
+
+  /* 登録トークン入力グループ（モーダル内） */
+  .modal-token-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  /* 登録トークン入力ラベル */
+  .modal-token-label {
+    font-size: 13px;
+    color: #374151;
+    font-weight: 500;
+  }
+
+  /* 登録トークン入力フィールド */
+  .modal-token-input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    font-size: 14px;
+    box-sizing: border-box;
+    font-family: 'Consolas', 'Courier New', monospace; /* トークン文字列は等幅フォントで表示 */
+  }
+
+  /* 入力フォーカス時: インジゴ色のボーダーとグロー */
+  .modal-token-input:focus {
+    outline: none;
+    border-color: #6366f1;
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
   }
 
   /* キャンセルボタン（グレー系・サブアクション） */

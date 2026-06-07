@@ -213,6 +213,29 @@ public interface AgentMapper {
      */
     Long findEmployeeIdByName(@Param("fullName") String fullName);
 
+    // ---- APIキー管理 (agents テーブル) ----
+
+    /**
+     * エージェントのAPIキーハッシュを更新する（初回登録時に呼び出す）
+     *
+     * <p>平文のAPIキーはバックエンドで生成後、bcryptハッシュに変換して保存する。
+     * 平文はエージェントへのレスポンスで一度だけ返却し、DB には保存しない。</p>
+     *
+     * @param agentNumber エージェント番号
+     * @param apiKeyHash  bcryptハッシュ化済みのAPIキー
+     * @return 更新件数（通常 1）
+     */
+    int updateApiKeyHash(@Param("agentNumber") String agentNumber,
+                         @Param("apiKeyHash") String apiKeyHash);
+
+    /**
+     * エージェント番号でAPIキーハッシュを取得する（リクエスト検証に使用）
+     *
+     * @param agentNumber エージェント番号
+     * @return APIキーのbcryptハッシュ文字列（未設定の場合は null）
+     */
+    String findApiKeyHashByAgentNumber(@Param("agentNumber") String agentNumber);
+
     // ---- PC資産更新 (pc_assets テーブル) ----
 
     /**
