@@ -3,6 +3,7 @@ package com.company.pcmgmt.service.agent;
 import com.company.pcmgmt.api.dto.request.agent.AgentRegisterRequest;
 import com.company.pcmgmt.api.dto.request.agent.AgentReportRequest;
 import com.company.pcmgmt.api.dto.response.agent.AgentRegisterResponse;
+import com.company.pcmgmt.api.dto.response.agent.AssetInfoResponse;
 import com.company.pcmgmt.domain.entity.Agent;
 import com.company.pcmgmt.domain.entity.AgentEnrollmentToken;
 import com.company.pcmgmt.domain.entity.Employee;
@@ -87,21 +88,7 @@ public class AgentService {
     // =========================================================
 
     /**
-     * エージェント番号に対応するPC資産の取得区分を返す
-     *
-     * <p>エージェントアプリ起動時に呼び出され、バックエンドに既に取得区分が
-     * 設定されているかを確認するために使用する。
-     * 設定済みの場合はエージェント側の選択欄を読み取り専用にする。</p>
-     *
-     * <p>V4 変更: ホスト名による検索からエージェント番号による検索に変更。
-     * エージェント番号は管理者画面・DB の値と直接対応するため、
-     * ホスト名の不一致による検索漏れが発生しない。</p>
-     *
-     * @param agentNumber エージェント番号（例: "AGT-A1B2C3D4"）
-     * @return 取得区分（"PURCHASE" / "RENTAL"）、未登録・未設定の場合は null
-     */
-    /**
-     * エージェント番号に対応するPC資産の取得区分を返す
+     * エージェント番号に対応するPC資産の取得区分と返却済みフラグを返す
      *
      * <p>検索順序:
      * <ol>
@@ -111,14 +98,16 @@ public class AgentService {
      * </ol>
      * </p>
      *
-     * <p>自動登録時に設定したプレースホルダー値 "UNKNOWN" は未設定扱いとして null を返す。
+     * <p>自動登録時に設定したプレースホルダー値 "UNKNOWN" は未設定扱いとして
+     * {@link AssetInfoResponse#getAcquisitionType()} が null となる。
      * これにより、エージェント側の取得区分ドロップダウンが有効のまま維持される。</p>
      *
      * @param agentNumber エージェント番号（例: "AGT-A1B2C3D4"）
      * @param hostname    フォールバック検索用のホスト名（null 可）
-     * @return 取得区分（"PURCHASE" / "RENTAL"）、未登録・未設定・UNKNOWN の場合は null
+     * @return 取得区分と返却済みフラグを含む {@link AssetInfoResponse}、
+     *         未登録・未設定・UNKNOWN の場合は null
      */
-    public String getAcquisitionType(String agentNumber, String hostname) {
+    public AssetInfoResponse getAssetInfo(String agentNumber, String hostname) {
         PcAsset asset = null;
 
         // ① エージェント番号で検索（pc_assets.agent_number が設定済みの場合）
@@ -136,10 +125,23 @@ public class AgentService {
             return null;
         }
 
-        // 自動登録時に設定したプレースホルダー値 "UNKNOWN" は未設定扱いとして null を返す。
-        // これにより、エージェント側の取得区分ドロップダウンが有効のまま維持される。
+        // 自動登録時のプレースホルダー値 "UNKNOWN" は未設定扱いとして null に変換する
         String acquisitionType = asset.getAcquisitionType();
-        return "UNKNOWN".equals(acquisitionType) ? null : acquisitionType;
+        if ("UNKNOWN".equals(acquisitionType)) {
+            acquisitionType = null;
+        }
+
+        // RENTAL の場合は pc_acquisition_rental.return_date で返却済みフラグを確認する
+        boolean returned = false;
+        if ("RENTAL".equals(acquisitionType) && asset.getId() != null) {
+            PcAcquisitionRental rental = rentalMapper.findByPcAssetId(asset.getId());
+            returned = rental != null && rental.getReturnDate() != null;
+        }
+
+        AssetInfoResponse response = new AssetInfoResponse();
+        response.setAcquisitionType(acquisitionType);
+        response.setReturned(returned);
+        return response;
     }
 
     // =========================================================

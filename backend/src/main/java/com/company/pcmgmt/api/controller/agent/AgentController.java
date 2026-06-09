@@ -4,6 +4,7 @@ import com.company.pcmgmt.api.dto.request.agent.AgentRegisterRequest;
 import com.company.pcmgmt.api.dto.request.agent.AgentReportRequest;
 import com.company.pcmgmt.api.dto.response.ApiResponse;
 import com.company.pcmgmt.api.dto.response.agent.AgentRegisterResponse;
+import com.company.pcmgmt.api.dto.response.agent.AssetInfoResponse;
 import com.company.pcmgmt.service.agent.AgentService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -48,7 +49,7 @@ public class AgentController {
      * @return 取得区分文字列（"PURCHASE" / "RENTAL"）、未登録・未設定の場合は null
      */
     @GetMapping("/asset-info")
-    public ResponseEntity<ApiResponse<String>> getAssetInfo(
+    public ResponseEntity<ApiResponse<AssetInfoResponse>> getAssetInfo(
             @RequestParam("agentNumber") String agentNumber,
             @RequestParam(value = "hostname", required = false) String hostname,
             @RequestHeader(value = "Authorization", required = false) String authorization) {
@@ -57,9 +58,9 @@ public class AgentController {
         String apiKey = extractBearerToken(authorization);
         agentService.validateApiKey(agentNumber, apiKey);
 
-        // エージェント番号（+ホスト名フォールバック）でPC資産を検索して取得区分を返す
-        String acquisitionType = agentService.getAcquisitionType(agentNumber, hostname);
-        return ResponseEntity.ok(ApiResponse.success(acquisitionType));
+        // エージェント番号（+ホスト名フォールバック）でPC資産を検索して取得区分と返却済みフラグを返す
+        AssetInfoResponse assetInfo = agentService.getAssetInfo(agentNumber, hostname);
+        return ResponseEntity.ok(ApiResponse.success(assetInfo));
     }
 
     /**

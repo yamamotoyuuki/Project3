@@ -80,10 +80,10 @@
           <span class="info-label">IPアドレス {{ idx > 0 ? idx + 1 : '' }}</span>
           <span>{{ nic.ip }}</span>
         </div>
-        <div class="info-row">
+        <!-- <div class="info-row">
           <span class="info-label">収集日時</span>
           <span>{{ pcInfo.collected_at }}</span>
-        </div>
+        </div> -->
         <!-- インストール済みソフトウェア件数 -->
         <!-- <div class="info-row">
           <span class="info-label">検出ソフトウェア</span>
@@ -92,7 +92,7 @@
       </div>
 
       <!-- 情報収集ボタン（Tauri コマンドを呼び出す） -->
-      <button class="btn-primary" @click="collectInfo">情報を取得</button>
+      <button class="btn-primary" @click="onCollectInfoClick">情報を取得</button>
     </div>
 
     <!-- =====================
@@ -102,22 +102,17 @@
     <div v-if="currentView === 'send' && agentNumber" class="view-panel">
       <h2>情報送信</h2>
 
-      <!-- 送信前に資産番号の設定を促す警告 -->
-      <div v-if="!settings.assetNumber" class="warning-alert">
-        <!-- 警告アイコン画像（imageフォルダより読み込み） -->
-        <img src="./image/icon-warning.svg" class="inline-icon" alt="warning" />
-        設定画面で管理番号（資産番号）を入力してください
-      </div>
+      <!-- 送信ステータスメッセージ（共通部品・画面中央フロート） -->
+      <StatusMessage
+        :message="sendStatus.message"
+        :messageType="sendStatus.type"
+        :isFading="isSendStatusFading"
+        :enableFadeOut="true"
+      />
 
-      <!-- 送信ステータスメッセージ（type に応じてimageフォルダのアイコン画像を表示） -->
-      <p class="status-msg" :class="[sendStatus.type, { fading: isSendStatusFading }]">
-        <img v-if="sendStatus.type === 'success'" src="./image/icon-success.svg" class="status-icon" alt="success" />
-        <img v-else-if="sendStatus.type === 'error'" src="./image/icon-error.svg" class="status-icon" alt="error" />
-        {{ sendStatus.message }}
-      </p>
 
       <!-- 送信ボタン（PC情報未収集またはエージェント番号未取得の場合は disabled） -->
-      <button class="btn-primary" @click="sendReport" :disabled="!pcInfo || !settings.assetNumber || !agentNumber">
+      <button class="btn-primary" @click="onSendReportClick" :disabled="!pcInfo || !agentNumber">
         手動送信
       </button>
     </div>
@@ -197,15 +192,16 @@
         - エージェント番号取得済み: 「保存」→ そのまま saveSettings を実行（画面遷移なし）
         - エージェント番号未取得 : 「新規登録」→ 確認モーダルを表示してから送信
       -->
-      <button v-if="agentNumber" class="btn-primary" @click="saveSettings">保存</button>
+      <button v-if="agentNumber" class="btn-primary" @click="onSaveSettingsClick">保存</button>
       <button v-else class="btn-primary btn-register" @click="onNewRegisterClick">新規登録</button>
 
-      <!-- 送信結果メッセージ（保存ボタン押下後に表示。imageフォルダのアイコン画像を使用） -->
-      <p v-if="sendStatus.type" class="status-msg" :class="[sendStatus.type, { fading: isSendStatusFading }]">
-        <img v-if="sendStatus.type === 'success'" src="./image/icon-success.svg" class="status-icon" alt="success" />
-        <img v-else-if="sendStatus.type === 'error'" src="./image/icon-error.svg" class="status-icon" alt="error" />
-        {{ sendStatus.message }}
-      </p>
+      <!-- 送信結果メッセージ（保存ボタン押下後に表示。共通部品・画面中央フロート） -->
+      <StatusMessage
+        :message="sendStatus.message"
+        :messageType="sendStatus.type"
+        :isFading="isSendStatusFading"
+        :enableFadeOut="true"
+      />
 
       <!-- ======================================================
            WindowsUpdate 適用判定
@@ -217,20 +213,13 @@
           <button class="btn-primary btn-win-update" :disabled="isWinUpdateLoading || !agentNumber" @click="runWindowsUpdateJudgment">
             WindowsUpdate 適用判定
           </button>
-          <!-- ボタン横のステータスメッセージ（処理中 / 件数 / エラー）          -->
-          <!-- アイコンは winUpdateMessageType に応じてimageフォルダの画像を読み込む -->
-          <span v-if="winUpdateMessage" class="win-update-status" :class="{
-              'win-update-status--loading': isWinUpdateLoading,
-              'win-update-status--ok'     : winUpdateMessageType === 'ok',
-              'win-update-status--warn'   : winUpdateMessageType === 'warn',
-              'win-update-status--error'  : winUpdateMessageType === 'error',
-              fading                      : isWinUpdateMessageFading,
-            }">
-            <img v-if="winUpdateMessageType === 'ok'"   src="./image/icon-success.svg" class="status-icon" alt="success" />
-            <img v-else-if="winUpdateMessageType === 'warn'"  src="./image/icon-warning.svg" class="status-icon" alt="warning" />
-            <img v-else-if="winUpdateMessageType === 'error'" src="./image/icon-error.svg"   class="status-icon" alt="error" />
-            {{ winUpdateMessage }}
-          </span>
+          <!-- WindowsUpdate 結果メッセージ（共通部品・画面中央フロート） -->
+          <StatusMessage
+            :message="winUpdateMessage"
+            :messageType="winUpdateMessageType"
+            :isFading="isWinUpdateMessageFading"
+            :enableFadeOut="true"
+          />
         </div>
 
       </div>
@@ -240,15 +229,14 @@
          PC情報取得 完了トースト
          PC情報タブでのみ表示。画面中央（メモリとディスク総容量の高さあたり）に重ねて表示する。
          ===================== -->
-    <div v-if="currentView === 'info' && collectStatus.type" class="info-status-overlay">
-      <p class="status-msg" :class="[collectStatus.type, { fading: isCollectStatusFading }]">
-        <!-- imageフォルダのアイコン画像を type に応じて読み込む -->
-        <img v-if="collectStatus.type === 'success'" src="./image/icon-success.svg" class="status-icon" alt="success" />
-        <img v-else-if="collectStatus.type === 'error'" src="./image/icon-error.svg" class="status-icon" alt="error" />
-        <img v-else-if="collectStatus.type === 'warning'" src="./image/icon-warning.svg" class="status-icon" alt="warning" />
-        {{ collectStatus.message }}
-      </p>
-    </div>
+    <!-- PC情報取得完了トースト（共通部品） -->
+    <StatusMessage
+      v-if="currentView === 'info'"
+      :message="collectStatus.message"
+      :messageType="collectStatus.type"
+      :isFading="isCollectStatusFading"
+      :enableFadeOut="true"
+    />
 
     <!-- =====================
          WindowsUpdate 未適用一覧 ポップアップ
@@ -275,21 +263,18 @@
     </div>
 
     <!-- =====================
-         登録結果 ポップアップ（画面中央表示）
-         成功時: 3秒後に自動フェードアウト
-         失敗時: 「閉じる」ボタンを押すまで表示、またはオーバーレイクリックで閉じる
+         登録結果 ポップアップ（画面中央表示・共通部品）
+         成功時: フェードアウト可否=true → 3秒後に自動フェードアウト
+         失敗時: フェードアウト可否=false → 「閉じる」ボタンを押すまで表示
          ===================== -->
-    <div v-if="registerPopup.type" class="register-popup-overlay" @click.self="closeRegisterPopup">
-      <div class="register-popup-content" :class="[registerPopup.type, { fading: isRegisterPopupFading }]">
-        <!-- 結果アイコン（imageフォルダより読み込み） -->
-        <img v-if="registerPopup.type === 'success'" src="./image/icon-success.svg" class="register-popup-icon" alt="success" />
-        <img v-else-if="registerPopup.type === 'error'" src="./image/icon-error.svg" class="register-popup-icon" alt="error" />
-        <!-- メッセージ本文（複数行対応） -->
-        <p class="register-popup-message">{{ registerPopup.message }}</p>
-        <!-- 閉じるボタン（成功・失敗ともに表示） -->
-        <button class="register-popup-close" @click="closeRegisterPopup">閉じる</button>
-      </div>
-    </div>
+    <StatusMessage
+      variant="popup"
+      :message="registerPopup.message"
+      :messageType="registerPopup.type"
+      :isFading="isRegisterPopupFading"
+      :enableFadeOut="registerPopup.type === 'success'"
+      @close="closeRegisterPopup"
+    />
 
     <!-- =====================
          新規登録 確認モーダル
@@ -322,10 +307,21 @@
         </div>
 
         <!-- チェック済み かつ トークン入力済みの場合のみ「登録」ボタンを表示 -->
-        <button v-if="confirmedNotPersonal && enrollmentTokenInput.trim()" class="btn-primary" @click="onRegisterConfirm">登録</button>
+        <button v-if="confirmedNotPersonal && enrollmentTokenInput.trim()" class="btn-primary" @click="onRegisterConfirmClick">登録</button>
 
         <!-- キャンセルボタン（常に表示） -->
         <button class="btn-cancel" @click="closeRegisterModal">キャンセル</button>
+      </div>
+    </div>
+
+    <!-- =====================
+         グローバルローディングオーバーレイ
+         ボタン押下からAPI処理完了までの間、画面全体を薄暗くして処理中を示す
+         ===================== -->
+    <div v-if="isGlobalLoading" class="global-loading-overlay">
+      <div class="global-loading-content">
+        <div class="global-loading-spinner"></div>
+        <span class="global-loading-text">処理中...</span>
       </div>
     </div>
 
@@ -374,6 +370,7 @@
    */
   import { ref, onMounted } from 'vue'
   import { invoke } from '@tauri-apps/api/core'
+  import StatusMessage from './components/StatusMessage.vue'
 
   /** タブ識別型 */
   type View = 'info' | 'send' | 'settings'
@@ -457,10 +454,10 @@
   const apiKey = ref < string | null > (null) // 起動時に load_api_key で読み込む
 
   /**
-   * PC情報取得ステータスメッセージ（type: 'success' | 'error' | ''）
+   * PC情報取得ステータスメッセージ（type: 'success' | 'error' | 'warning' | ''）
    * PC情報タブの「情報を取得」ボタン押下後にメモリとディスク総容量の間に表示する
    */
-  const collectStatus = ref({ type: '', message: '' })
+  const collectStatus = ref<{ type: 'success' | 'error' | 'warning' | ''; message: string }>({ type: '', message: '' })
 
   /** PC情報取得メッセージのフェードアウト中フラグ */
   const isCollectStatusFading = ref(false)
@@ -489,8 +486,8 @@
     }, 2500)
   }
 
-  /** 送信ステータスメッセージ（type: 'success' | 'error' | 'loading' | ''） */
-  const sendStatus = ref({ type: '', message: '送信ボタンを押してください' })
+  /** 送信ステータスメッセージ（type: 'success' | 'error' | ''） */
+  const sendStatus = ref<{ type: 'success' | 'error' | ''; message: string }>({ type: '', message: '送信ボタンを押してください' })
 
   /**
    * フェードアウト中フラグ
@@ -510,7 +507,7 @@
    * - 既存タイマーがある場合はキャンセルして新たに開始する（連続押下対応）
    * - 2.5 秒後に fading フラグを true にして CSS フェードアウト（0.5 秒）を開始する
    * - フェードアウト完了後にメッセージをリセットする
-   * - loading 表示中には呼び出さない（成功・エラー確定後のみ呼ぶ）
+   * - 成功・エラー確定後のみ呼ぶ
    */
   function startSendStatusFadeTimer() {
     // 既存タイマーをキャンセルして二重起動を防ぐ
@@ -572,6 +569,9 @@
   /** ボタン横メッセージのフェードアウトタイマー参照（連続押下時のキャンセルに使用） */
   let winUpdateMessageTimer: ReturnType<typeof setTimeout> | null = null
 
+  /** ボタン押下中の全画面ローディングオーバーレイ表示フラグ（true: オーバーレイ表示） */
+  const isGlobalLoading = ref(false)
+
   /**
    * ボタン横の winUpdateMessage を 3 秒後にフェードアウトして消去するタイマーを開始する
    * - 2.5 秒後に fading フラグを true にして CSS フェードアウト（0.5 秒）を開始する
@@ -605,14 +605,16 @@
    * ネットワーク通信を伴うため最大 120 秒かかる場合がある。
    */
   async function runWindowsUpdateJudgment() {
-    // ボタン押下時: 既存フェードタイマーをキャンセルして「処理中です...」を即時表示する
+    // ボタン押下時: 既存フェードタイマーをキャンセルしてメッセージをリセットする（グローバルローディングで処理中を表示するためメッセージは不要）
     if (winUpdateMessageTimer !== null) {
       clearTimeout(winUpdateMessageTimer)
       winUpdateMessageTimer = null
     }
     isWinUpdateMessageFading.value = false
     isWinUpdateLoading.value = true
-    winUpdateMessage.value = '処理中です...'
+    isGlobalLoading.value = true
+    winUpdateMessage.value = ''
+    winUpdateMessageType.value = ''
     winUpdateKbIds.value = []
     isWinUpdatePopupVisible.value = false
     try {
@@ -656,6 +658,7 @@
       startWinUpdateMessageFadeTimer()
     } finally {
       isWinUpdateLoading.value = false
+      isGlobalLoading.value = false
     }
   }
 
@@ -954,13 +957,12 @@
   async function sendReport() {
     if (!pcInfo.value) return
     try {
-      // 送信開始時は既存のフェードタイマーをキャンセルして loading を即時表示する
+      // 送信開始時は既存のフェードタイマーをキャンセルする（グローバルローディングで処理中を表示するため loading メッセージは不要）
       if (sendStatusTimer !== null) {
         clearTimeout(sendStatusTimer)
         sendStatusTimer = null
       }
       isSendStatusFading.value = false
-      sendStatus.value = { type: 'loading', message: '送信中...' }
 
       // 取得区分の送信判定:
       // - バックエンドから取得済み（選択欄がdisabled）→ null（送信しない・再取得しない）
@@ -1030,6 +1032,58 @@
    */
   function navigateToSettings() {
     currentView.value = 'settings'
+  }
+
+  /**
+   * 「情報を取得」ボタン押下ハンドラ
+   * 処理中は全画面ローディングオーバーレイを表示する
+   */
+  async function onCollectInfoClick() {
+    isGlobalLoading.value = true
+    try {
+      await collectInfo()
+    } finally {
+      isGlobalLoading.value = false
+    }
+  }
+
+  /**
+   * 「手動送信」ボタン押下ハンドラ
+   * 処理中は全画面ローディングオーバーレイを表示する
+   */
+  async function onSendReportClick() {
+    isGlobalLoading.value = true
+    try {
+      await sendReport()
+    } finally {
+      isGlobalLoading.value = false
+    }
+  }
+
+  /**
+   * 「保存」ボタン押下ハンドラ
+   * 処理中は全画面ローディングオーバーレイを表示する
+   */
+  async function onSaveSettingsClick() {
+    isGlobalLoading.value = true
+    try {
+      await saveSettings()
+    } finally {
+      isGlobalLoading.value = false
+    }
+  }
+
+  /**
+   * 確認モーダルの「登録」ボタン押下ハンドラ
+   * 処理中は全画面ローディングオーバーレイを表示する
+   */
+  async function onRegisterConfirmClick() {
+    isGlobalLoading.value = true
+    try {
+      await onRegisterConfirm()
+    } finally {
+      isGlobalLoading.value = false
+    }
   }
 
   /**
@@ -1352,33 +1406,6 @@
     font-weight: 500;
   }
 
-  /* PC情報タブ: 取得完了トースト（画面中央に重ねて表示） */
-  .info-status-overlay {
-    position: fixed;
-    /* 画面基準で配置（スクロール影響なし） */
-    top: 50%;
-    /* 垂直方向: 画面中央（メモリ〜ディスク項目付近） */
-    left: 50%;
-    /* 水平方向: 画面中央 */
-    transform: translate(-50%, -50%);
-    z-index: 200;
-    /* モーダルより手前に表示 */
-    pointer-events: none;
-    /* メッセージ背後のクリックをブロックしない */
-  }
-
-  /* オーバーレイ内の status-msg: コンパクトかつ影付きで浮いて見せる */
-  .info-status-overlay .status-msg {
-    margin-bottom: 0;
-    padding: 10px 28px;
-    font-size: 14px;
-    font-weight: 600;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
-    /* 浮き上がって見える影 */
-    white-space: nowrap;
-    /* 改行させない */
-  }
-
   /* ==============================
    フォームグループ（設定画面）
    ============================== */
@@ -1491,61 +1518,6 @@
   }
 
   /* ==============================
-   ステータスメッセージ
-   ============================== */
-
-  .status-msg {
-    padding: 10px;
-    border-radius: 8px;
-    margin-bottom: 16px;
-    font-size: 14px;
-    /* フェードアウトアニメーション用トランジション（fading クラス付与時に opacity: 0 へ遷移） */
-    opacity: 1;
-    transition: opacity 0.5s ease;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-
-  /* ステータスメッセージ内のアイコン画像（imageフォルダの icon-success.svg / icon-error.svg） */
-  .status-icon {
-    width: 16px;
-    height: 16px;
-    flex-shrink: 0;
-  }
-
-  /* フェードアウト中（3秒経過後に JS が付与） */
-  .status-msg.fading {
-    opacity: 0;
-  }
-
-  /* 緑: 送信成功 */
-  .status-msg.success {
-    background: #d1fae5;
-    color: #065f46;
-  }
-
-  /* 赤: エラー */
-  .status-msg.error {
-    background: #fee2e2;
-    color: #dc2626;
-  }
-
-  /* 紫: 送信中 */
-  .status-msg.loading {
-    background: #ede9fe;
-    color: #5b21b6;
-  }
-
-  /* オレンジ: レンタル返却済み警告（「取得しました」の代わりに表示） */
-  .status-msg.warning {
-    background: #fff7ed;
-    color: #92400e;
-    /* \n を改行として描画するために pre-line を指定する */
-    white-space: pre-line;
-  }
-
-  /* ==============================
    WindowsUpdate 適用判定
    ============================== */
 
@@ -1570,40 +1542,6 @@
     width: auto;
     white-space: nowrap;
     padding: 10px 20px;
-  }
-
-  /* ボタン横のステータスメッセージ共通スタイル */
-  .win-update-status {
-    font-size: 13px;
-    font-weight: 600;
-    /* フェードアウトアニメーション（fading クラス付与時に opacity: 0 へ遷移） */
-    opacity: 1;
-    transition: opacity 0.5s ease;
-  }
-
-  /* フェードアウト中 */
-  .win-update-status.fading {
-    opacity: 0;
-  }
-
-  /* 処理中（紫） */
-  .win-update-status--loading {
-    color: #5b21b6;
-  }
-
-  /* 最新状態（緑） */
-  .win-update-status--ok {
-    color: #065f46;
-  }
-
-  /* 未適用あり（オレンジ） */
-  .win-update-status--warn {
-    color: #92400e;
-  }
-
-  /* エラー（赤） */
-  .win-update-status--error {
-    color: #dc2626;
   }
 
   /* ==============================
@@ -1687,88 +1625,6 @@
     font-size: 11px;
     color: #6b7280;
     margin: 0;
-  }
-
-  /* ==============================
-   登録結果 ポップアップ
-   ============================== */
-
-  /* 半透明オーバーレイ（クリックで閉じる） */
-  .register-popup-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.45);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 150; /* 新規登録モーダル（100）より手前 */
-    padding: 20px;
-  }
-
-  /* ポップアップ本体（白カード） */
-  .register-popup-content {
-    background: white;
-    border-radius: 12px;
-    padding: 28px 24px 20px;
-    width: 100%;
-    max-width: 300px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 14px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-    /* フェードアウトアニメーション用トランジション */
-    opacity: 1;
-    transition: opacity 0.5s ease;
-  }
-
-  /* フェードアウト中（JS が付与） */
-  .register-popup-content.fading {
-    opacity: 0;
-  }
-
-  /* 成功時: 上部に緑のアクセントボーダー */
-  .register-popup-content.success {
-    border-top: 4px solid #10b981;
-  }
-
-  /* 失敗時: 上部に赤のアクセントボーダー */
-  .register-popup-content.error {
-    border-top: 4px solid #dc2626;
-  }
-
-  /* 結果アイコン画像（imageフォルダより読み込み） */
-  .register-popup-icon {
-    width: 40px;
-    height: 40px;
-  }
-
-  /* メッセージ本文 */
-  .register-popup-message {
-    margin: 0;
-    font-size: 14px;
-    text-align: center;
-    color: #374151;
-    line-height: 1.7;
-    /* \n を改行として描画する */
-    white-space: pre-line;
-  }
-
-  /* 閉じるボタン */
-  .register-popup-close {
-    background: #f3f4f6;
-    color: #374151;
-    border: 1px solid #d1d5db;
-    padding: 9px 0;
-    border-radius: 8px;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    width: 100%;
-  }
-
-  .register-popup-close:hover {
-    background: #e5e7eb;
   }
 
   /* 新規登録ボタン（オレンジ系でアクション意図を強調） */
@@ -1976,5 +1832,51 @@
     color: #6366f1;
     font-weight: 600;
     border-top: 2px solid #6366f1;
+  }
+
+  /* ==============================
+   グローバルローディングオーバーレイ
+   ============================== */
+
+  /* 画面全体を覆う半透明オーバーレイ（全モーダルより手前に表示） */
+  .global-loading-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 400;
+  }
+
+  /* スピナーとテキストを縦に並べる */
+  .global-loading-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+  }
+
+  /* 回転スピナー */
+  .global-loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid rgba(255, 255, 255, 0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  /* スピナー回転アニメーション */
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  /* 「処理中...」テキスト */
+  .global-loading-text {
+    color: white;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
   }
 </style>
