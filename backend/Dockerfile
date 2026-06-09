@@ -1,5 +1,6 @@
 # ---- Build Stage ----
-FROM eclipse-temurin:21-jdk-alpine AS builder
+# Amazon Corretto 21 (Alpine ベース) でビルドする
+FROM amazoncorretto:21-alpine AS builder
 WORKDIR /app
 COPY gradlew settings.gradle build.gradle ./
 COPY gradle ./gradle
@@ -8,7 +9,9 @@ COPY src ./src
 RUN ./gradlew bootJar --no-daemon
 
 # ---- Runtime Stage ----
-FROM eclipse-temurin:21-jre-alpine
+# Amazon Corretto 21 (Alpine ベース) で実行する
+# Corretto は JRE 単体イメージを提供しないため JDK イメージを使用する
+FROM amazoncorretto:21-alpine
 WORKDIR /app
 COPY --from=builder /app/build/libs/*.jar app.jar
 EXPOSE 8080

@@ -32,7 +32,7 @@ jobs:
     # MySQL サービスコンテナ（統合テスト用）
     services:
       mysql:
-        image: mysql:8.0
+        image: mysql:9.0.7
         env:
           MYSQL_ROOT_PASSWORD: pass
           MYSQL_DATABASE: project3_test
@@ -50,12 +50,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Java 21 (Temurin) をセットアップ
+      # Java 21 (Amazon Corretto) をセットアップ
       - name: Set up Java 21
         uses: actions/setup-java@v4
         with:
           java-version: '21'
-          distribution: 'temurin'
+          distribution: 'corretto'
 
       # Gradle キャッシュ（ビルド時間短縮）
       - name: Cache Gradle packages
@@ -80,7 +80,7 @@ jobs:
         working-directory: backend
         env:
           SPRING_PROFILES_ACTIVE: test
-          SPRING_DATASOURCE_URL: jdbc:mysql://localhost:3306/project3_test?useSSL=false&allowPublicKeyRetrieval=true
+          SPRING_DATASOURCE_URL: jdbc:mysql://localhost:3306/project3_test?allowPublicKeyRetrieval=true&sslMode=DISABLED
           SPRING_DATASOURCE_USERNAME: root
           SPRING_DATASOURCE_PASSWORD: pass
 

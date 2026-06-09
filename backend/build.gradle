@@ -6,7 +6,20 @@ plugins {
 
 group = 'com.company'
 version = '1.0.0'
-sourceCompatibility = '21'
+
+/**
+ * Java ツールチェーン設定
+ *
+ * Amazon Corretto 21 を使用する。
+ * Gradle がビルドに使用する JDK ディストリビューション・バージョンを明示的に指定する。
+ * sourceCompatibility / targetCompatibility はツールチェーンが自動設定するため不要。
+ */
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)   // Java 21 LTS
+        vendor = JvmVendorSpec.AMAZON                  // Amazon Corretto
+    }
+}
 
 configurations {
     compileOnly {
@@ -28,8 +41,8 @@ dependencies {
     // MyBatis
     implementation 'org.mybatis.spring.boot:mybatis-spring-boot-starter:3.0.3'
 
-    // MySQL
-    runtimeOnly 'com.mysql:mysql-connector-j'
+    // MySQL（9.1.0: MySQL 9.0.x 対応版）
+    runtimeOnly 'com.mysql:mysql-connector-j:9.1.0'
 
     // Flyway (DB migration)
     implementation 'org.flywaydb:flyway-core'

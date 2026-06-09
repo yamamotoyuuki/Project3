@@ -21,8 +21,9 @@
 | --- | --- | --- | --- |
 | フロントエンド（Web） | Vue.js + TypeScript | Vue 3 / Vite | Composition API、Pinia（状態管理）
 | フロントエンド（エージェント） | Vue.js + TypeScript + Tauri | Tauri 2.x | Rustバックエンド、クロスプラットフォーム |
+| JDK | Amazon Corretto | 21 | Java 21 LTS（Amazon Corretto 21使用） |
 | バックエンド API | Java / Spring Boot | 3.x / Java 21 | REST API、Spring Security（JWT） |
-| データベース | MySQL | 8.x | MyBatis、Flyway（マイグレーション） |
+| データベース | MySQL | 9.0.7 | MyBatis、Flyway（マイグレーション） |
 | エージェント収集ロジック | Rust（Tauri） | 1.7+ | sysinfo クレートで情報収集 |
 | コンテナ | Docker / Docker Compose | 最新安定版 | 開発・本番環境共通 |
 | ビルドツール | Gradle | 最新安定版 | backendビルド・依存関係管理 |

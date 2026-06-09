@@ -4,7 +4,7 @@ spring:
   application:
     name: pcmgmt-backend
   datasource:
-    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:pcmgmt}?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Tokyo&allowPublicKeyRetrieval=true&useSSL=false
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:pcmgmt}?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Tokyo&allowPublicKeyRetrieval=true&sslMode=DISABLED
     username: ${DB_USER:pcmgmt}
     password: ${DB_PASSWORD:pcmgmt_password}
     driver-class-name: com.mysql.cj.jdbc.Driver
