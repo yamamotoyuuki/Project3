@@ -213,13 +213,6 @@
           <button class="btn-primary btn-win-update" :disabled="isWinUpdateLoading || !agentNumber" @click="runWindowsUpdateJudgment">
             WindowsUpdate 適用判定
           </button>
-          <!-- WindowsUpdate 結果メッセージ（共通部品・画面中央フロート） -->
-          <StatusMessage
-            :message="winUpdateMessage"
-            :messageType="winUpdateMessageType"
-            :isFading="isWinUpdateMessageFading"
-            :enableFadeOut="true"
-          />
         </div>
 
       </div>
@@ -541,7 +534,7 @@
   /** 判定処理中フラグ（true の間はボタンを disabled にする） */
   const isWinUpdateLoading = ref(false)
 
-  /** ボタン横に表示するステータスメッセージ（処理中 / 結果件数 / エラー） */
+  /** モーダルに表示するステータスメッセージ（結果件数 / エラー） */
   const winUpdateMessage = ref('')
 
   /**
@@ -552,49 +545,12 @@
 
   /**
    * 未適用更新ポップアップの表示フラグ
-   * 未適用更新が 1 件以上ある場合のみ true になる
+   * 未適用更新が 1 件以上ある場合、またはエラー発生時に true になる
    */
   const isWinUpdatePopupVisible = ref(false)
 
-  /** ボタン横メッセージのフェードアウト中フラグ */
-  const isWinUpdateMessageFading = ref(false)
-
-  /**
-   * ボタン横メッセージのステータス種別
-   * アイコン img の src 切り替えに使用（絵文字によるstartsWith判定を廃止し画像化対応）
-   * 'ok' | 'warn' | 'error' | 'loading' | ''
-   */
-  const winUpdateMessageType = ref<'ok' | 'warn' | 'error' | 'loading' | ''>('')
-
-  /** ボタン横メッセージのフェードアウトタイマー参照（連続押下時のキャンセルに使用） */
-  let winUpdateMessageTimer: ReturnType<typeof setTimeout> | null = null
-
   /** ボタン押下中の全画面ローディングオーバーレイ表示フラグ（true: オーバーレイ表示） */
   const isGlobalLoading = ref(false)
-
-  /**
-   * ボタン横の winUpdateMessage を 3 秒後にフェードアウトして消去するタイマーを開始する
-   * - 2.5 秒後に fading フラグを true にして CSS フェードアウト（0.5 秒）を開始する
-   * - フェードアウト完了後にメッセージをリセットする
-   * - ポップアップ（isWinUpdatePopupVisible）はタイマーの影響を受けず、手動で閉じるまで残る
-   */
-  function startWinUpdateMessageFadeTimer() {
-    if (winUpdateMessageTimer !== null) {
-      clearTimeout(winUpdateMessageTimer)
-      winUpdateMessageTimer = null
-    }
-    isWinUpdateMessageFading.value = false
-    // 2.5 秒後にフェードアウト開始（CSS transition 0.5 秒と合わせて合計 3 秒で消える）
-    winUpdateMessageTimer = setTimeout(() => {
-      isWinUpdateMessageFading.value = true
-      winUpdateMessageTimer = setTimeout(() => {
-        winUpdateMessage.value = ''
-        winUpdateMessageType.value = ''  // アイコン表示もリセット
-        isWinUpdateMessageFading.value = false
-        winUpdateMessageTimer = null
-      }, 500)
-    }, 2500)
-  }
 
   /**
    * WindowsUpdate 適用判定を実行する
@@ -605,16 +561,11 @@
    * ネットワーク通信を伴うため最大 120 秒かかる場合がある。
    */
   async function runWindowsUpdateJudgment() {
-    // ボタン押下時: 既存フェードタイマーをキャンセルしてメッセージをリセットする（グローバルローディングで処理中を表示するためメッセージは不要）
-    if (winUpdateMessageTimer !== null) {
-      clearTimeout(winUpdateMessageTimer)
-      winUpdateMessageTimer = null
-    }
-    isWinUpdateMessageFading.value = false
+    // ボタン押下時: メッセージ・KB一覧・ポップアップをリセットする
+    // グローバルローディングオーバーレイで処理中を表示するため、ここでは何も表示しない
     isWinUpdateLoading.value = true
     isGlobalLoading.value = true
     winUpdateMessage.value = ''
-    winUpdateMessageType.value = ''
     winUpdateKbIds.value = []
     isWinUpdatePopupVisible.value = false
     try {
@@ -625,37 +576,25 @@
       if (countMatch) {
         const count = parseInt(countMatch[1], 10)
         if (count === 0) {
-          // 未適用なし: 成功アイコン + メッセージを表示（ポップアップなし）→ 3 秒後フェードアウト
-          // アイコンは絵文字でなく imageフォルダの icon-success.svg を使用（規約準拠）
-          winUpdateMessageType.value = 'ok'
-          winUpdateMessage.value = '最新の状態です（未適用の更新はありません）'
+          // 未適用なし: ポップアップは表示しない（最新状態のため通知不要）
           winUpdateKbIds.value = []
-          startWinUpdateMessageFadeTimer()
         } else {
           // テーブルの KB 列（行頭に並ぶ 4〜8 桁の数値）を抽出して "KBXXXXXXX" 形式に変換する
           // 出力例: "5034441   Critical  2024-01-15  ..." → "KB5034441"
           winUpdateKbIds.value = [...result.matchAll(/^\s*(\d{4,8})\b/gm)]
             .map(m => `KB${m[1]}`)
-          // 警告アイコンは imageフォルダの icon-warning.svg を使用（規約準拠）
-          winUpdateMessageType.value = 'warn'
+          // 未適用あり: 件数メッセージをセットして画面中央のポップアップを表示する
           winUpdateMessage.value = `${count} 件の未適用更新があります`
-          // 未適用あり: 画面中央にポップアップを表示 + ボタン横メッセージは 3 秒後フェードアウト
           isWinUpdatePopupVisible.value = true
-          startWinUpdateMessageFadeTimer()
         }
-      } else {
-        winUpdateMessageType.value = 'ok'
-        winUpdateMessage.value = '取得完了'
-        winUpdateKbIds.value = []
-        startWinUpdateMessageFadeTimer()
       }
+      // countMatch が null の場合（出力フォーマット変化等）はポップアップを表示しない
     } catch (e: unknown) {
-      // エラーアイコンは imageフォルダの icon-error.svg を使用（規約準拠）
-      winUpdateMessageType.value = 'error'
+      // エラー発生時: エラーメッセージをセットしてポップアップを表示する（フェードアウトしない）
       const errorMessage = e instanceof Error ? e.message : String(e)
       winUpdateMessage.value = `エラー: ${errorMessage}`
       winUpdateKbIds.value = []
-      startWinUpdateMessageFadeTimer()
+      isWinUpdatePopupVisible.value = true
     } finally {
       isWinUpdateLoading.value = false
       isGlobalLoading.value = false
